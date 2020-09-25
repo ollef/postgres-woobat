@@ -1,0 +1,79 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.34.2.
+--
+-- see: https://github.com/sol/hpack
+
+name:           postgres-woobat
+version:        0.1.0.0
+homepage:       https://github.com/ollef/postgres-woobat#readme
+bug-reports:    https://github.com/ollef/postgres-woobat/issues
+author:         Olle Fredriksson
+maintainer:     fredriksson.olle@gmail.com
+copyright:      2020 Olle Fredriksson
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    README.md
+    CHANGELOG.md
+
+source-repository head
+  type: git
+  location: https://github.com/ollef/postgres-woobat
+
+library
+  exposed-modules:
+      Database.Woobat
+      Database.Woobat.Compiler
+      Database.Woobat.Expr
+      Database.Woobat.Monad
+      Database.Woobat.Query
+      Database.Woobat.Query.Syntax
+      Database.Woobat.Raw
+      Database.Woobat.Scope
+      Database.Woobat.Table
+      Scratch
+  other-modules:
+      Paths_postgres_woobat
+  hs-source-dirs:
+      src
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Wtabs -funbox-strict-fields
+  build-depends:
+      barbies
+    , base >=4.7 && <5
+    , bytestring
+    , bytestring-strict-builder
+    , containers
+    , generic-lens
+    , higgledy >=0.3.0
+    , lens
+    , mtl
+    , postgresql-binary
+    , postgresql-libpq >=0.9.4
+    , text
+  default-language: Haskell2010
+
+test-suite postgres-woobat-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Paths_postgres_woobat
+  hs-source-dirs:
+      test
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Wtabs -funbox-strict-fields -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      barbies
+    , base >=4.7 && <5
+    , bytestring
+    , bytestring-strict-builder
+    , containers
+    , generic-lens
+    , higgledy >=0.3.0
+    , lens
+    , mtl
+    , postgres-woobat
+    , postgresql-binary
+    , postgresql-libpq >=0.9.4
+    , text
+  default-language: Haskell2010
