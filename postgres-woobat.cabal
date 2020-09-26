@@ -28,10 +28,10 @@ library
       Database.Woobat.Compiler
       Database.Woobat.Expr
       Database.Woobat.Monad
-      Database.Woobat.Query
-      Database.Woobat.Query.Syntax
       Database.Woobat.Raw
       Database.Woobat.Scope
+      Database.Woobat.Select
+      Database.Woobat.Select.Builder
       Database.Woobat.Table
       Scratch
   other-modules:
@@ -51,7 +51,10 @@ library
     , mtl
     , postgresql-binary
     , postgresql-libpq >=0.9.4
+    , scientific
     , text
+    , time
+    , uuid-types
   default-language: Haskell2010
 
 test-suite postgres-woobat-test
@@ -75,5 +78,8 @@ test-suite postgres-woobat-test
     , postgres-woobat
     , postgresql-binary
     , postgresql-libpq >=0.9.4
+    , scientific
     , text
+    , time
+    , uuid-types
   default-language: Haskell2010

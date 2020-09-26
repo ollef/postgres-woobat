@@ -1,53 +1,84 @@
-{-# language AllowAmbiguousTypes #-}
-{-# language FlexibleContexts #-}
-{-# language FlexibleInstances #-}
+{-# language DuplicateRecordFields #-}
 {-# language GeneralizedNewtypeDeriving #-}
-{-# language TypeApplications #-}
-{-# language TypeFamilies #-}
-{-# language TypeSynonymInstances #-}
+{-# language NamedFieldPuns #-}
+{-# language OverloadedStrings #-}
 module Database.Woobat.Compiler where
 
-import Control.Applicative
 import Control.Monad.State
-import Data.Barbie (TraversableB, bfoldMap)
+import Data.Barbie (bfoldMap)
 import Data.ByteString (ByteString)
-import Data.Generic.HKD (HKD)
-import Data.Text (Text)
+import Data.Foldable
+import qualified Data.Generic.HKD as HKD
+import Data.List
+import Data.String
 import Database.Woobat.Expr
-import Database.Woobat.Query.Syntax
 import qualified Database.Woobat.Raw as Raw
-import GHC.Generics
 
-type Compiler = State CompilerState
+newtype Compiler a = Compiler (State Int a)
+  deriving (Functor, Applicative, Monad, MonadState Int)
 
-data CompilerState = CompilerState
-  { nextName :: !Int
-  , parameters :: [Raw.Param]
-  }
+instance Monoid a => Monoid (Compiler a) where
+  mempty = pure mempty
 
-type family Result r where
-  Result (Expr s a) = a
-  Result (Row s table) = table
-  Result (a, b) = (Result a, Result b)
+instance Semigroup a => Semigroup (Compiler a) where
+  ma <> mb = (<>) <$> ma <*> mb
 
-newtype ResultParser a = ResultParser (StateT [Maybe ByteString] (Either Text) a)
-  deriving (Functor, Applicative, Monad)
+instance IsString a => IsString (Compiler a) where
+  fromString = pure . fromString
 
-class FromResult a where
-  resultParser :: ResultParser (Result a)
+freshNameWithSuggestion :: ByteString -> Compiler ByteString
+freshNameWithSuggestion suggestion = do
+  n <- get
+  put $ n + 1
+  pure $ suggestion <> "_" <> fromString (show n)
 
-class DatabaseResult a where
-  databaseResult :: a -> [Raw.SQL]
+compile :: HKD.TraversableB a => a (Expr s) -> Raw.Select -> Compiler Raw.SQL
+compile result select =
+  compileSelect (separateBy ", " $ bfoldMap (\(Expr e) -> [e]) result) select
 
-instance DatabaseResult (Expr s a) where
-  databaseResult (Expr sql) = [sql]
+compileSelect :: Raw.SQL -> Raw.Select -> Compiler Raw.SQL
+compileSelect exprs Raw.Select { from, wheres, groupBys, orderBys } =
+  "SELECT " <> pure exprs <> " FROM " <>
+  compileFrom from <>
+  pure (compileWheres wheres) <>
+  pure (compileGroupBys groupBys) <>
+  pure (compileOrderBys orderBys)
 
-instance TraversableB (HKD table) => DatabaseResult (Row s table) where
-  databaseResult = bfoldMap databaseResult
+compileFrom :: Raw.From -> Compiler Raw.SQL
+compileFrom from =
+  case from of
+    Raw.Unit ->
+      "(VALUES (0)) " <> fmap Raw.code (freshNameWithSuggestion "unit")
+    Raw.Table name alias
+      | name == alias ->
+        pure $ Raw.code name
+      | otherwise ->
+        pure $ Raw.code name <> " AS " <> Raw.code alias
+    Raw.Subquery exprAliases select alias ->
+      "(" <> compileSelect (separateBy ", " $ (\(expr, columnAlias) -> expr <> " AS " <> Raw.code columnAlias) <$> exprAliases) select <> ") AS " <> pure (Raw.code alias)
+    Raw.CrossJoin from_ froms ->
+      separateBy ", " $ compileFrom <$> from_ : toList froms
+    Raw.LeftJoin left on right ->
+      compileFrom left <> " LEFT JOIN " <> compileFrom right <> " ON " <> pure on
 
-instance (DatabaseResult a, DatabaseResult b) => DatabaseResult (a, b) where
-  databaseResult (a, b) = databaseResult a <> databaseResult b
+compileWheres :: Raw.Tsil Raw.SQL -> Raw.SQL
+compileWheres Raw.Empty = mempty
+compileWheres wheres = " WHERE " <> separateBy " AND " wheres
 
-compileQuery :: DatabaseResult a => Query s result -> Compiler Raw.SQL
-compileQuery (Pure result) = _
+compileGroupBys :: Raw.Tsil Raw.SQL -> Raw.SQL
+compileGroupBys Raw.Empty = mempty
+compileGroupBys groupBys = " GROUP BY " <> separateBy ", " groupBys
 
+compileOrderBys :: Raw.Tsil (Raw.SQL, Raw.Order) -> Raw.SQL
+compileOrderBys Raw.Empty = mempty
+compileOrderBys orderBys =
+  " ORDER BY " <>
+  separateBy ", " ((\(expr, order) -> expr <> " " <> compileOrder order) <$> orderBys)
+
+compileOrder :: Raw.Order -> Raw.SQL
+compileOrder Raw.Ascending = "ASC"
+compileOrder Raw.Descending = "DESC"
+
+separateBy :: (Foldable f, Monoid a) => a -> f a -> a
+separateBy separator =
+  mconcat . intersperse separator . toList

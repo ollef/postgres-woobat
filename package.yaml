@@ -34,7 +34,10 @@ dependencies:
 - mtl
 - postgresql-binary
 - postgresql-libpq >= 0.9.4
+- scientific
 - text
+- time
+- uuid-types
 
 library:
   source-dirs: src
