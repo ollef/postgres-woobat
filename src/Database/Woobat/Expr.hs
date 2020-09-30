@@ -57,3 +57,15 @@ instance {-# OVERLAPPABLE #-} DatabaseEq (Expr s a) where
 instance {-# OVERLAPPING #-} DatabaseEq (Expr s (Maybe a)) where
   Expr x ==. Expr y = Expr $ x <> " IS NOT DISTINCT FROM " <> y
   Expr x /=. Expr y = Expr $ x <> " IS DISTINCT FROM " <> y
+
+(<.) :: Scope.Same s t => Expr s a -> Expr t a -> Expr s Bool
+Expr x <. Expr y = Expr $ x <> " < " <> y
+
+(<=.) :: Scope.Same s t => Expr s a -> Expr t a -> Expr s Bool
+Expr x <=. Expr y = Expr $ x <> " <= " <> y
+
+(>.) :: Scope.Same s t => Expr s a -> Expr t a -> Expr s Bool
+Expr x >. Expr y = Expr $ x <> " > " <> y
+
+(>=.) :: Scope.Same s t => Expr s a -> Expr t a -> Expr s Bool
+Expr x >=. Expr y = Expr $ x <> " >= " <> y
