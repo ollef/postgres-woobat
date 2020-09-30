@@ -58,6 +58,12 @@ instance {-# OVERLAPPABLE #-} DatabaseEq (Expr s a) where
   Expr x ==. Expr y = Expr $ x <> " = " <> y
   Expr x /=. Expr y = Expr $ x <> " != " <> y
 
+(&&.) :: Scope.Same s t => Expr s Bool -> Expr t Bool -> Expr s Bool
+Expr x &&. Expr y = Expr $ x <> " && " <> y
+
+(||.) :: Scope.Same s t => Expr s a -> Expr t a -> Expr s Bool
+Expr x ||. Expr y = Expr $ x <> " || " <> y
+
 -- | Handles nulls the same way as Haskell's equality operators using
 -- @IS [NOT] DISTINCT FROM@.
 instance {-# OVERLAPPING #-} DatabaseEq (Expr s (Maybe a)) where
