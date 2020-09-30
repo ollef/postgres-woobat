@@ -24,30 +24,34 @@ import Data.UUID.Types (UUID)
 import Data.Word
 import qualified PostgreSQL.Binary.Encoding as Encoding
 
-data SQL = SQL (Seq (Builder, Param)) Builder
+newtype SQL = SQL (Seq SQLFragment)
+  deriving (Show)
+
+data SQLFragment
+  = Code !Builder
+  | Param !ByteString
+  | NullParam
   deriving Show
 
-newtype Param = Param ByteString
-  deriving (Show, IsString, Semigroup, Monoid)
+instance IsString SQLFragment where
+  fromString = Code . fromString
 
 instance IsString SQL where
-  fromString = SQL mempty . fromString
+  fromString = SQL . pure . fromString
 
 instance Semigroup SQL where
-  SQL codes1 code1 <> SQL Seq.Empty code2 =
-    SQL codes1 (code1 <> code2)
-
-  SQL codes1 code1 <> SQL ((code2, lit3) Seq.:<| codes4) code5 =
-    SQL ((codes1 Seq.:|> (code1 <> code2, lit3)) <> codes4) code5
+  SQL (codes1 Seq.:|> Code code2) <> SQL (Code code3 Seq.:<| codes4) =
+    SQL $ (codes1 Seq.:|> Code (code2 <> code3)) <> codes4
+  SQL codes1 <> SQL codes2 = SQL $ codes1 <> codes2
 
 instance Monoid SQL where
-  mempty = SQL mempty mempty
+  mempty = SQL mempty
 
 code :: ByteString -> SQL
-code = SQL mempty . Builder.bytes
+code = SQL . pure . Code . Builder.bytes
 
 param :: ByteString -> SQL
-param p = SQL (pure (mempty, Param p)) mempty
+param = SQL . pure . Param
 
 -------------------------------------------------------------------------------
 
