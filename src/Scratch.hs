@@ -81,3 +81,12 @@ lol = do
 
 profiles :: Select s (HKD Profile (Expr s))
 profiles = from profile
+
+unit :: Select s ()
+unit = pure ()
+
+eqProfiles :: Select s (Expr s Bool, Expr s Bool)
+eqProfiles = do
+  p1 <- from profile
+  p2 <- from profile
+  pure (p1 ==. p2, p1 /=. p2)
