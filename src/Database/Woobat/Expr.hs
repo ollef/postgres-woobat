@@ -1,12 +1,20 @@
+{-# language FlexibleContexts #-}
 {-# language FlexibleInstances #-}
 {-# language OverloadedStrings #-}
 {-# language RankNTypes #-}
 {-# language ScopedTypeVariables #-}
 {-# language TypeApplications #-}
 {-# language TypeFamilies #-}
+{-# language UndecidableInstances #-}
 {-# options_ghc -Wno-redundant-constraints #-}
 module Database.Woobat.Expr where
 
+import qualified Data.Barbie as Barbie
+import qualified Data.Barbie.Constraints as Barbie
+import Data.Functor.Const
+import Data.Functor.Product
+import Data.Generic.HKD (HKD)
+import qualified Data.Generic.HKD as HKD
 import Data.String (IsString, fromString)
 import qualified Database.Woobat.Raw as Raw
 import qualified Database.Woobat.Scope as Scope
@@ -57,6 +65,25 @@ class DatabaseEq a where
 instance {-# OVERLAPPABLE #-} DatabaseEq (Expr s a) where
   Expr x ==. Expr y = Expr $ x <> " = " <> y
   Expr x /=. Expr y = Expr $ x <> " != " <> y
+
+instance (HKD.ConstraintsB (HKD table), HKD.TraversableB (HKD table), Barbie.ProductB (HKD table), Barbie.AllBF DatabaseEq e (HKD table)) => DatabaseEq (HKD table e) where
+  table1 ==. table2 =
+    foldr_ (&&.) true $
+    Barbie.bfoldMap (\(Const e) -> [e]) $
+    Barbie.bmapC @(Barbie.ClassF DatabaseEq e) (\(Pair x y) -> Const $ x ==. y) $
+    Barbie.bzip table1 table2
+    where
+      foldr_ _ b [] = b
+      foldr_ f _ as = foldr1 f as
+
+  table1 /=. table2 =
+    foldr_ (||.) false $
+    Barbie.bfoldMap (\(Const e) -> [e]) $
+    Barbie.bmapC @(Barbie.ClassF DatabaseEq e) (\(Pair x y) -> Const $ x /=. y) $
+    Barbie.bzip table1 table2
+    where
+      foldr_ _ b [] = b
+      foldr_ f _ as = foldr1 f as
 
 (&&.) :: Scope.Same s t => Expr s Bool -> Expr t Bool -> Expr s Bool
 Expr x &&. Expr y = Expr $ x <> " && " <> y
