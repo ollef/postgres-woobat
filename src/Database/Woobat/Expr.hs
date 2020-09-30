@@ -69,3 +69,27 @@ Expr x >. Expr y = Expr $ x <> " > " <> y
 
 (>=.) :: Scope.Same s t => Expr s a -> Expr t a -> Expr s Bool
 Expr x >=. Expr y = Expr $ x <> " >= " <> y
+
+count :: Expr s a -> AggregateExpr s Int
+count (Expr e) = AggregateExpr $ "count(" <> e <> ")"
+
+countAll :: AggregateExpr s Int
+countAll = AggregateExpr "count(*)"
+
+average :: Num a => Expr s a -> AggregateExpr s (Maybe a)
+average (Expr e) = AggregateExpr $ "avg(" <> e <> ")"
+
+all_ :: Expr s Bool -> AggregateExpr s Bool
+all_ (Expr e) = AggregateExpr $ "bool_and(" <> e <> ")"
+
+or_ :: Expr s Bool -> AggregateExpr s Bool
+or_ (Expr e) = AggregateExpr $ "bool_or(" <> e <> ")"
+
+max_ :: Expr s a -> AggregateExpr s (Maybe a)
+max_ (Expr e) = AggregateExpr $ "max(" <> e <> ")"
+
+min_ :: Expr s a -> AggregateExpr s (Maybe a)
+min_ (Expr e) = AggregateExpr $ "min(" <> e <> ")"
+
+sum_ :: (Num a, Num b) => Expr s a -> AggregateExpr s (Maybe b)
+sum_ (Expr e) = AggregateExpr $ "sum(" <> e <> ")"

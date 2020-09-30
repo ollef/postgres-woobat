@@ -36,13 +36,15 @@ instance
 data Profile = Profile
   { name :: !Text
   , description :: !Text
+  , age :: !Int
   , optional :: !(Maybe Text)
+  , boolean :: !Bool
   } deriving Generic
 
 profile :: Table Profile
 profile = table "profile"
 
-ppp = Profile { name = "Olle", description = "", optional = Nothing } ^. #name
+ppp = Profile { name = "Olle", age = 33, description = "", optional = Nothing, boolean = False } ^. #name
 
 descriptionQuery :: Select s (Expr s Text)
 descriptionQuery = do
@@ -50,12 +52,17 @@ descriptionQuery = do
   where_ $ p ^. #name ==. "Olle"
   pure $ p ^. #name
 
-countProfiles :: Select s (Expr s Text)
+countProfiles :: Select s (Expr s Int, Expr s (Maybe Int), Expr s Text, Expr s Bool)
 countProfiles =
   aggregate $ do
     p <- from profile
     name_ <- groupBy $ p ^. #name
-    pure name_
+    pure
+      ( count $ p ^. #name
+      , sum_ $ p ^. #age
+      , name_
+      , all_ $ p ^. #boolean
+      )
 
 lol :: forall s. Select s (Expr s Text, Expr s (Maybe Text))
 lol = do
