@@ -8,6 +8,7 @@
 module Database.Woobat.Barbie where
 
 import qualified Data.Barbie as Barbie
+import Data.Coerce
 import Data.Functor.Product
 import qualified Data.Generic.HKD as HKD
 import Data.Generic.HKD (HKD)
@@ -112,3 +113,35 @@ instance (Barbie f a, Barbie f b, Barbie f c, Barbie f d, Barbie f e, Barbie f a
   toBarbie (a, b, c, d, e, a1, b1, c1) = Pair (Pair (Pair (toBarbie a) (toBarbie b)) (Pair (toBarbie c) (toBarbie d))) (Pair (Pair (toBarbie e) (toBarbie a1)) (Pair (toBarbie b1) (toBarbie c1)))
   unBarbie (Pair (Pair (Pair a b) (Pair c d)) (Pair (Pair e a1) (Pair b1 c1))) = (unBarbie a, unBarbie b, unBarbie c, unBarbie d, unBarbie e, unBarbie a1, unBarbie b1, unBarbie c1)
   fromBarbie (Pair (Pair (Pair a b) (Pair c d)) (Pair (Pair e a1) (Pair b1 c1))) = (fromBarbie @f @a a, fromBarbie @f @b b, fromBarbie @f @c c, fromBarbie @f @d d, fromBarbie @f @e e, fromBarbie @f @a1 a1, fromBarbie @f @b1 b1, fromBarbie @f @c1 c1)
+
+-------------------------------------------------------------------------------
+
+type ToOuter s a = FromBarbie (Expr (Inner s)) a (Expr s)
+
+toOuter
+  :: forall s a. (Barbie (Expr (Inner s)) a)
+  => ToBarbie (Expr (Inner s)) a (Expr (Inner s))
+  -> ToOuter s a
+toOuter =
+  fromBarbie @(Expr (Inner s)) @a
+  . HKD.bmap (coerce :: forall x. Expr (Inner s) x -> Expr s x)
+
+type ToLeft s a = FromBarbie (Expr (Inner s)) a (NullableExpr s)
+
+toLeft
+  :: forall s a. (Barbie (Expr (Inner s)) a)
+  => ToBarbie (Expr (Inner s)) a (Expr (Inner s))
+  -> ToLeft s a
+toLeft =
+  fromBarbie @(Expr (Inner s)) @a
+  . HKD.bmap (coerce :: forall x. Expr (Inner s) x -> NullableExpr s x)
+
+type FromAggregate s a = FromBarbie (AggregateExpr (Inner s)) a (Expr s)
+
+fromAggregate
+  :: forall s a. (Barbie (AggregateExpr (Inner s)) a)
+  => ToBarbie (AggregateExpr (Inner s)) a (Expr (Inner s))
+  -> FromAggregate s a
+fromAggregate =
+  fromBarbie @(AggregateExpr (Inner s)) @a
+  . HKD.bmap (coerce :: forall x. Expr (Inner s) x -> Expr s x)

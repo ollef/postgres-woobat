@@ -15,7 +15,6 @@ module Database.Woobat.Select
 import Control.Monad.State
 import qualified Data.Barbie as Barbie
 import Data.ByteString (ByteString)
-import Data.Coerce
 import Data.Functor.Const (Const(Const))
 import Data.Functor.Product
 import qualified Data.Generic.HKD as HKD
@@ -29,38 +28,6 @@ import Database.Woobat.Scope
 import Database.Woobat.Select.Builder
 import Database.Woobat.Table (Table)
 import qualified Database.Woobat.Table as Table
-
-type ToOuter s a = FromBarbie (Expr (Inner s)) a (Expr s)
-
-toOuter
-  :: forall s a. (Barbie (Expr (Inner s)) a)
-  => ToBarbie (Expr (Inner s)) a (Expr (Inner s))
-  -> ToOuter s a
-toOuter =
-  fromBarbie @(Expr (Inner s)) @a
-  . HKD.bmap (coerce :: forall x. Expr (Inner s) x -> Expr s x)
-
-type ToLeft s a = FromBarbie (Expr (Inner s)) a (NullableExpr s)
-
-toLeft
-  :: forall s a. (Barbie (Expr (Inner s)) a)
-  => ToBarbie (Expr (Inner s)) a (Expr (Inner s))
-  -> ToLeft s a
-toLeft =
-  fromBarbie @(Expr (Inner s)) @a
-  . HKD.bmap (coerce :: forall x. Expr (Inner s) x -> NullableExpr s x)
-
-type FromAggregate s a = FromBarbie (AggregateExpr (Inner s)) a (Expr s)
-
-fromAggregate
-  :: forall s a. (Barbie (AggregateExpr (Inner s)) a)
-  => ToBarbie (AggregateExpr (Inner s)) a (Expr (Inner s))
-  -> FromAggregate s a
-fromAggregate =
-  fromBarbie @(AggregateExpr (Inner s)) @a
-  . HKD.bmap (coerce :: forall x. Expr (Inner s) x -> Expr s x)
-
--------------------------------------------------------------------------------
 
 select :: forall s a. Barbie (Expr s) a => Select s a -> Raw.SQL
 select (Select s) =
