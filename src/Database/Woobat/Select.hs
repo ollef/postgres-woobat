@@ -30,8 +30,6 @@ import Database.Woobat.Select.Builder
 import Database.Woobat.Table (Table)
 import qualified Database.Woobat.Table as Table
 
-type Row s table = HKD table (Expr s)
-
 type ToOuter s a = FromBarbie (Expr (Inner s)) a (Expr s)
 
 toOuter
@@ -79,14 +77,14 @@ from
   :: forall table s
   . HKD.FunctorB (HKD table)
   => Table table
-  -> Select s (Row s table)
+  -> Select s (HKD table (Expr s))
 from table = Select $ do
   let
     tableName =
       Text.encodeUtf8 $ Table.name table
   alias <- freshNameWithSuggestion tableName
   let
-    row :: Row s table
+    row :: HKD table (Expr s)
     row =
       HKD.bmap (\(Const columnName) -> Expr $ Raw.code $ alias <> "." <> Text.encodeUtf8 columnName) $ Table.columnNames table
   addSelect mempty { Raw.from = Raw.Table tableName alias }
