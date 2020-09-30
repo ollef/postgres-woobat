@@ -89,4 +89,5 @@ eqProfiles :: Select s (Expr s Bool, Expr s Bool)
 eqProfiles = do
   p1 <- from profile
   p2 <- from profile
+  orderBy (p1 ^. #name) ascending
   pure (p1 ==. p2, p1 /=. p2)
