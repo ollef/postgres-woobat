@@ -237,7 +237,7 @@ instance DatabaseType UTCTime where
   value = param . Builder.builderBytes . Encoding.timestamptz_int
   typeName = "timestamptz"
 
--- | @timestamptz@
+-- | @interval@
 instance DatabaseType DiffTime where
   value = param . Builder.builderBytes . Encoding.interval_int
   typeName = "interval"
