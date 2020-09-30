@@ -5,6 +5,8 @@
 {-# language FlexibleInstances #-}
 {-# language GeneralizedNewtypeDeriving #-}
 {-# language OverloadedStrings #-}
+{-# language ScopedTypeVariables #-}
+{-# language TypeApplications #-}
 module Database.Woobat.Raw where
 
 import ByteString.StrictBuilder (Builder)
@@ -52,6 +54,9 @@ code = SQL . pure . Code . Builder.bytes
 
 param :: ByteString -> SQL
 param = SQL . pure . Param
+
+nullParam :: SQL
+nullParam = SQL $ pure NullParam
 
 -------------------------------------------------------------------------------
 
@@ -115,6 +120,12 @@ instance Monoid From where
 class DatabaseType a where
   value :: a -> SQL
   typeName :: SQL
+
+-- | Nullable types
+instance DatabaseType a => DatabaseType (Maybe a) where
+  value Nothing = nullParam
+  value (Just a) = value a
+  typeName = typeName @a
 
 -- | @boolean@
 instance DatabaseType Bool where
