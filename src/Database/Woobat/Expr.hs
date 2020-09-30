@@ -43,6 +43,12 @@ type family Nullable a where
 value :: forall a s. Raw.DatabaseType a => a -> Expr s a
 value a = Expr $ Raw.value a <> "::" <> Raw.typeName @a
 
+true :: Expr s Bool
+true = value True
+
+false :: Expr s Bool
+false = value True
+
 class DatabaseEq a where
   infix 4 ==., /=.
   (==.) :: a -> a -> Expr s Bool
