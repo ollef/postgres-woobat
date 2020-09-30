@@ -43,8 +43,17 @@ type family Nullable a where
 value :: forall a s. Raw.DatabaseType a => a -> Expr s a
 value a = Expr $ Raw.value a <> "::" <> Raw.typeName @a
 
-(==.) :: Scope.Same s t => Expr s a -> Expr t a -> Expr s Bool
-Expr f ==. Expr g =
-  Expr $ f <> " = " <> g
+class DatabaseEq a where
+  infix 4 ==., /=.
+  (==.) :: a -> a -> Expr s Bool
+  (/=.) :: a -> a -> Expr s Bool
 
-infix 4 ==.
+instance {-# OVERLAPPABLE #-} DatabaseEq (Expr s a) where
+  Expr x ==. Expr y = Expr $ x <> " = " <> y
+  Expr x /=. Expr y = Expr $ x <> " != " <> y
+
+-- | Handles nulls the same way as Haskell's equality operators using
+-- @IS [NOT] DISTINCT FROM@.
+instance {-# OVERLAPPING #-} DatabaseEq (Expr s (Maybe a)) where
+  Expr x ==. Expr y = Expr $ x <> " IS NOT DISTINCT FROM " <> y
+  Expr x /=. Expr y = Expr $ x <> " IS DISTINCT FROM " <> y
