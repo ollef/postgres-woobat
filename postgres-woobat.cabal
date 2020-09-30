@@ -54,6 +54,7 @@ library
     , scientific
     , text
     , time
+    , unordered-containers
     , uuid-types
   default-language: Haskell2010
 
@@ -81,5 +82,6 @@ test-suite postgres-woobat-test
     , scientific
     , text
     , time
+    , unordered-containers
     , uuid-types
   default-language: Haskell2010

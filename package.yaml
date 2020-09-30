@@ -37,6 +37,7 @@ dependencies:
 - scientific
 - text
 - time
+- unordered-containers
 - uuid-types
 
 library:

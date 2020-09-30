@@ -123,10 +123,10 @@ fromAggregate =
 
 select :: forall s a. Barbie (Expr s) a => Select s a -> Raw.SQL
 select (Select s) =
-  evalState compiler $ nextName selectState
+  evalState compiler $ usedNames selectState
   where
     (results, selectState) =
-      runState s SelectState {nextName = 0, rawSelect = mempty}
+      runState s SelectState {usedNames = mempty, rawSelect = mempty}
     resultsBarbie :: ToBarbie (Expr s) a (Expr s)
     resultsBarbie = toBarbie results
     Compiler.Compiler compiler =

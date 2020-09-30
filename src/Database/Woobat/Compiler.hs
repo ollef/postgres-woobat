@@ -9,13 +9,15 @@ import Data.Barbie (bfoldMap)
 import Data.ByteString (ByteString)
 import Data.Foldable
 import qualified Data.Generic.HKD as HKD
+import Data.HashMap.Lazy (HashMap)
+import qualified Data.HashMap.Lazy as HashMap
 import Data.List
 import Data.String
 import Database.Woobat.Expr
 import qualified Database.Woobat.Raw as Raw
 
-newtype Compiler a = Compiler (State Int a)
-  deriving (Functor, Applicative, Monad, MonadState Int)
+newtype Compiler a = Compiler (State (HashMap ByteString Int) a)
+  deriving (Functor, Applicative, Monad, MonadState (HashMap ByteString Int))
 
 instance Monoid a => Monoid (Compiler a) where
   mempty = pure mempty
@@ -27,16 +29,24 @@ instance IsString a => IsString (Compiler a) where
   fromString = pure . fromString
 
 freshNameWithSuggestion :: ByteString -> Compiler ByteString
-freshNameWithSuggestion suggestion = do
-  n <- get
-  put $ n + 1
-  pure $ suggestion <> "_" <> fromString (show n)
+freshNameWithSuggestion suggestion = Compiler $ do
+  used <- get
+  let
+    usedCount = HashMap.lookupDefault 0 suggestion used
+  put $ HashMap.insert suggestion (usedCount + 1) used
+  pure $
+    if usedCount == 0 then
+      suggestion
+    else
+      suggestion <> "_" <> fromString (show usedCount)
 
 compile :: HKD.TraversableB a => a (Expr s) -> Raw.Select -> Compiler Raw.SQL
 compile result select =
   compileSelect (separateBy ", " $ bfoldMap (\(Expr e) -> [e]) result) select
 
 compileSelect :: Raw.SQL -> Raw.Select -> Compiler Raw.SQL
+compileSelect exprs Raw.Select { from = Raw.Unit, wheres = Raw.Empty, groupBys = Raw.Empty, orderBys = Raw.Empty } =
+  "SELECT " <> pure exprs
 compileSelect exprs Raw.Select { from, wheres, groupBys, orderBys } =
   "SELECT " <> pure exprs <> " FROM " <>
   compileFrom from <>
