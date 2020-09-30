@@ -25,6 +25,7 @@ source-repository head
 library
   exposed-modules:
       Database.Woobat
+      Database.Woobat.Barbie
       Database.Woobat.Compiler
       Database.Woobat.Expr
       Database.Woobat.Monad
