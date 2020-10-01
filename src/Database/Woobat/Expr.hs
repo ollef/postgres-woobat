@@ -177,6 +177,14 @@ param typeName encoding a =
 class DatabaseType a where
   value :: a -> Expr s a
 
+-- | Arrays
+instance DatabaseType a => DatabaseType [a] where
+  value as = Expr $ "ARRAY[" <> mconcat (intersperse ", " $ map rawValue as) <> "]"
+    where
+      rawValue x = sql
+        where
+          Expr sql = value x
+
 -- | Nullable types
 instance DatabaseType a => DatabaseType (Maybe a) where
   value Nothing = Expr Raw.nullParam
