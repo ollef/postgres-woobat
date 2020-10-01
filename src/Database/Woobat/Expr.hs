@@ -179,6 +179,15 @@ sum_ :: (Num a, Num b) => Expr s a -> AggregateExpr s (Maybe b)
 sum_ (Expr e) = AggregateExpr $ "sum(" <> e <> ")"
 
 -------------------------------------------------------------------------------
+-- * Rows
+
+row :: HKD.TraversableB (HKD table) => HKD table (Expr s) -> Expr s table
+row table = Expr $
+  "ROW(" <>
+    mconcat (intersperse ", " $ Barbie.bfoldMap (\(Expr e) -> [e]) table) <>
+  ")"
+
+-------------------------------------------------------------------------------
 -- * Going from Haskell types to database types and back
 
 class DatabaseType a where
@@ -196,14 +205,8 @@ instance DatabaseType a => DatabaseType [a] where
 instance {-# OVERLAPPABLE #-}
   (HKD.Construct Identity table, HKD.ConstraintsB (HKD table), HKD.TraversableB (HKD table), Barbie.AllB DatabaseType (HKD table))
   => DatabaseType table where
-  value table = Expr $
-    "ROW(" <>
-      mconcat (
-        intersperse ", " $ Barbie.bfoldMap (\(Expr e) -> [e]) $
-        Barbie.bmapC @DatabaseType (\(Identity field) -> value field) $
-        HKD.deconstruct table
-      ) <>
-    ")"
+  value table =
+    row $ Barbie.bmapC @DatabaseType (\(Identity field) -> value field) $ HKD.deconstruct table
 
 -- | Nullable types
 -- TODO disallow nested maybes

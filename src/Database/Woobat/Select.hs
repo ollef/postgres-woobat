@@ -51,11 +51,11 @@ from table = Select $ do
       Text.encodeUtf8 $ Table.name table
   alias <- freshNameWithSuggestion tableName
   let
-    row :: HKD table (Expr s)
-    row =
+    tableRow :: HKD table (Expr s)
+    tableRow =
       HKD.bmap (\(Const columnName) -> Expr $ Raw.code $ alias <> "." <> Text.encodeUtf8 columnName) $ Table.columnNames table
   addSelect mempty { Raw.from = Raw.Table tableName alias }
-  pure row
+  pure tableRow
 
 where_ :: Same s t => Expr s Bool -> Select t ()
 where_ (Expr cond) =
