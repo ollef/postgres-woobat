@@ -68,8 +68,8 @@ instance (Num a, DatabaseType a) => Num (Expr s a) where
   (+) = unsafeBinaryOperator "+"
   (-) = unsafeBinaryOperator "-"
   (*) = unsafeBinaryOperator "*"
-  abs (Expr a) = Expr $ "abs(" <> a <> ")"
-  signum (Expr a) = Expr $ "sign(" <> a <> ")"
+  abs (Expr a) = Expr $ "ABS(" <> a <> ")"
+  signum (Expr a) = Expr $ "SIGN(" <> a <> ")"
 
 mod_ :: Num a => Expr s a -> Expr s a -> Expr s a
 mod_ = unsafeBinaryOperator "%"
@@ -161,28 +161,28 @@ infix 4 <., <=., >., >=.
 -- * Aggregates
 
 count :: Expr s a -> AggregateExpr s Int
-count (Expr e) = AggregateExpr $ "count(" <> e <> ")"
+count (Expr e) = AggregateExpr $ "COUNT(" <> e <> ")"
 
 countAll :: AggregateExpr s Int
-countAll = AggregateExpr "count(*)"
+countAll = AggregateExpr "COUNT(*)"
 
 average :: Num a => Expr s a -> AggregateExpr s (Maybe a)
-average (Expr e) = AggregateExpr $ "avg(" <> e <> ")"
+average (Expr e) = AggregateExpr $ "AVG(" <> e <> ")"
 
 all_ :: Expr s Bool -> AggregateExpr s Bool
-all_ (Expr e) = AggregateExpr $ "bool_and(" <> e <> ")"
+all_ (Expr e) = AggregateExpr $ "BOOL_AND(" <> e <> ")"
 
 or_ :: Expr s Bool -> AggregateExpr s Bool
-or_ (Expr e) = AggregateExpr $ "bool_or(" <> e <> ")"
+or_ (Expr e) = AggregateExpr $ "BOOL_OR(" <> e <> ")"
 
 max_ :: Expr s a -> AggregateExpr s (Maybe a)
-max_ (Expr e) = AggregateExpr $ "max(" <> e <> ")"
+max_ (Expr e) = AggregateExpr $ "MAX(" <> e <> ")"
 
 min_ :: Expr s a -> AggregateExpr s (Maybe a)
-min_ (Expr e) = AggregateExpr $ "min(" <> e <> ")"
+min_ (Expr e) = AggregateExpr $ "MIN(" <> e <> ")"
 
 sum_ :: (Num a, Num b) => Expr s a -> AggregateExpr s (Maybe b)
-sum_ (Expr e) = AggregateExpr $ "sum(" <> e <> ")"
+sum_ (Expr e) = AggregateExpr $ "SUM(" <> e <> ")"
 
 -------------------------------------------------------------------------------
 -- * Rows
