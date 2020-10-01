@@ -82,7 +82,6 @@ instance Fractional (Expr s Double) where
   fromRational = value . fromRational
   (/) = unsafeBinaryOperator "/"
 
-
 -------------------------------------------------------------------------------
 -- * Equality
 
