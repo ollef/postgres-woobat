@@ -54,6 +54,12 @@ type family Nullable a where
 instance (IsString a, DatabaseType a) => IsString (Expr s a) where
   fromString = value . fromString
 
+instance Semigroup (Expr s Text) where
+  (<>) = unsafeBinaryOperator "||"
+
+instance (DatabaseType a, Semigroup (Expr s a), Monoid a) => Monoid (Expr s a) where
+  mempty = value mempty
+
 -------------------------------------------------------------------------------
 -- * Numerics
 
