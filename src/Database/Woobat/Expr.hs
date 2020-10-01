@@ -16,6 +16,7 @@ import qualified Data.Barbie as Barbie
 import qualified Data.Barbie.Constraints as Barbie
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as Lazy
+import Data.Coerce
 import Data.Functor.Const
 import Data.Functor.Identity
 import Data.Functor.Product
@@ -195,11 +196,8 @@ class DatabaseType a where
 
 -- | Arrays
 instance DatabaseType a => DatabaseType [a] where
-  value as = Expr $ "ARRAY[" <> mconcat (intersperse ", " $ map rawValue as) <> "]"
-    where
-      rawValue x = sql
-        where
-          Expr sql = value x
+  value as =
+    Expr $ "ARRAY[" <> mconcat (intersperse ", " $ map ((\(Expr sql) -> sql) . value) as) <> "]"
 
 -- | Rows
 instance {-# OVERLAPPABLE #-}
@@ -212,9 +210,7 @@ instance {-# OVERLAPPABLE #-}
 -- TODO disallow nested maybes
 instance DatabaseType a => DatabaseType (Maybe a) where
   value Nothing = Expr Raw.nullParam
-  value (Just a) = Expr sql
-    where
-      Expr sql = value a
+  value (Just a) = coerce $ value a
 
 -- | @boolean@
 instance DatabaseType Bool where
