@@ -185,6 +185,19 @@ instance DatabaseType a => DatabaseType [a] where
         where
           Expr sql = value x
 
+-- | Rows
+instance {-# OVERLAPPABLE #-}
+  (HKD.Construct Identity table, HKD.ConstraintsB (HKD table), HKD.TraversableB (HKD table), Barbie.AllB DatabaseType (HKD table))
+  => DatabaseType table where
+  value table = Expr $
+    "ROW(" <>
+      mconcat (
+        intersperse ", " $ Barbie.bfoldMap (\(Expr e) -> [e]) $
+        Barbie.bmapC @DatabaseType (\(Identity field) -> value field) $
+        HKD.deconstruct table
+      ) <>
+    ")"
+
 -- | Nullable types
 instance DatabaseType a => DatabaseType (Maybe a) where
   value Nothing = Expr Raw.nullParam
