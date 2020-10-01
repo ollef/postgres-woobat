@@ -200,7 +200,7 @@ class DatabaseType a where
   value :: a -> Expr s a
   typeName :: Raw.SQL
   arrayElement :: a -> Raw.SQL
-  arrayElement = coerce $ value @a
+  arrayElement = coerce . value @a
   arrayElementTypeName :: Raw.SQL
   arrayElementTypeName = typeName @a
 
