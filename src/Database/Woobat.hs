@@ -17,7 +17,7 @@ module Database.Woobat
   , module Database.Woobat.Table
   ) where
 
-import Database.Woobat.Expr
+import Database.Woobat.Expr hiding (param, unsafeBinaryOperator)
 import Database.Woobat.Monad
 import Database.Woobat.Scope
 import Database.Woobat.Select

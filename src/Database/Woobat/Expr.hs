@@ -17,10 +17,12 @@ import qualified Data.Barbie.Constraints as Barbie
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as Lazy
 import Data.Functor.Const
+import Data.Functor.Identity
 import Data.Functor.Product
 import Data.Generic.HKD (HKD)
 import qualified Data.Generic.HKD as HKD
 import Data.Int
+import Data.List
 import Data.Scientific
 import Data.String (IsString, fromString)
 import Data.Text (Text)
@@ -33,13 +35,27 @@ import qualified Database.Woobat.Scope as Scope
 import PostgreSQL.Binary.Encoding (Encoding)
 import qualified PostgreSQL.Binary.Encoding as Encoding
 
+-------------------------------------------------------------------------------
+-- * Types
+
 newtype Expr s a = Expr Raw.SQL
 
-unsafeBinaryOperator :: Scope.Same s t => Raw.SQL -> Expr s a -> Expr t b -> Expr s c
-unsafeBinaryOperator name (Expr x) (Expr y) = Expr $ "(" <> x <> " " <> name <> " " <> y <> ")"
+newtype AggregateExpr s a = AggregateExpr Raw.SQL
+
+newtype NullableExpr s a = NullableExpr (Expr s (Nullable a))
+
+type family Nullable a where
+  Nullable (Maybe a) = Maybe a
+  Nullable a = Maybe a
+
+-------------------------------------------------------------------------------
+-- * Strings
 
 instance (IsString a, DatabaseType a) => IsString (Expr s a) where
   fromString = value . fromString
+
+-------------------------------------------------------------------------------
+-- * Numerics
 
 instance (Num a, DatabaseType a) => Num (Expr s a) where
   fromInteger = value . fromInteger
@@ -60,13 +76,6 @@ instance Fractional (Expr s Double) where
   fromRational = value . fromRational
   (/) = unsafeBinaryOperator "/"
 
-newtype AggregateExpr s a = AggregateExpr Raw.SQL
-
-newtype NullableExpr s a = NullableExpr (Expr s (Nullable a))
-
-type family Nullable a where
-  Nullable (Maybe a) = Maybe a
-  Nullable a = Maybe a
 
 -------------------------------------------------------------------------------
 -- * Equality
@@ -87,7 +96,8 @@ instance {-# OVERLAPPING #-} DatabaseEq s (Expr s (Maybe a)) where
   (/=.) = unsafeBinaryOperator "IS DISTINCT FROM"
 
 -- | Pointwise equality
-instance (HKD.ConstraintsB (HKD table), HKD.TraversableB (HKD table), Barbie.ProductB (HKD table), Barbie.AllBF (DatabaseEq s) (Expr s) (HKD table))
+instance
+  (HKD.ConstraintsB (HKD table), HKD.TraversableB (HKD table), Barbie.ProductB (HKD table), Barbie.AllBF (DatabaseEq s) (Expr s) (HKD table))
   => DatabaseEq s (HKD table (Expr s)) where
   table1 ==. table2 =
     foldr_ (&&.) true $
@@ -169,10 +179,7 @@ sum_ :: (Num a, Num b) => Expr s a -> AggregateExpr s (Maybe b)
 sum_ (Expr e) = AggregateExpr $ "sum(" <> e <> ")"
 
 -------------------------------------------------------------------------------
-
-param :: Raw.SQL -> (a -> Encoding) -> a -> Expr s a
-param typeName encoding a =
-  Expr $ Raw.param (Builder.builderBytes $ encoding a) <> "::" <> typeName
+-- * Going from Haskell types to database types and back
 
 class DatabaseType a where
   value :: a -> Expr s a
@@ -199,6 +206,7 @@ instance {-# OVERLAPPABLE #-}
     ")"
 
 -- | Nullable types
+-- TODO disallow nested maybes
 instance DatabaseType a => DatabaseType (Maybe a) where
   value Nothing = Expr Raw.nullParam
   value (Just a) = Expr sql
@@ -296,3 +304,13 @@ instance DatabaseType UTCTime where
 -- | @interval@
 instance DatabaseType DiffTime where
   value = param "interval" Encoding.interval_int
+
+-------------------------------------------------------------------------------
+-- * Low-level utilities
+
+param :: Raw.SQL -> (a -> Encoding) -> a -> Expr s a
+param typeName encoding a =
+  Expr $ Raw.param (Builder.builderBytes $ encoding a) <> "::" <> typeName
+
+unsafeBinaryOperator :: Scope.Same s t => Raw.SQL -> Expr s a -> Expr t b -> Expr s c
+unsafeBinaryOperator name (Expr x) (Expr y) = Expr $ "(" <> x <> " " <> name <> " " <> y <> ")"
