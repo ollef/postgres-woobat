@@ -2,6 +2,7 @@
 {-# language FlexibleContexts #-}
 {-# language FlexibleInstances #-}
 {-# language FunctionalDependencies #-}
+{-# language GADTs #-}
 {-# language OverloadedStrings #-}
 {-# language ScopedTypeVariables #-}
 {-# language TypeApplications #-}
@@ -11,6 +12,7 @@
 module Database.Woobat.Expr where
 
 import qualified ByteString.StrictBuilder as Builder
+import Control.Monad
 import qualified Data.Barbie as Barbie
 import qualified Data.Barbie.Constraints as Barbie
 import Data.ByteString (ByteString)
@@ -32,6 +34,8 @@ import Data.UUID.Types (UUID)
 import Data.Word
 import qualified Database.Woobat.Raw as Raw
 import qualified Database.Woobat.Scope as Scope
+import GHC.Generics
+import qualified PostgreSQL.Binary.Decoding as Decoding
 import PostgreSQL.Binary.Encoding (Encoding)
 import qualified PostgreSQL.Binary.Encoding as Encoding
 
@@ -198,26 +202,49 @@ row table = Expr $
 class DatabaseType a where
   value :: a -> Expr s a
   typeName :: Raw.SQL
+  decoder :: Decoder a
+
   arrayElement :: a -> Raw.SQL
   arrayElement = coerce . value @a
-  arrayElementTypeName :: Raw.SQL
-  arrayElementTypeName = typeName @a
+
+  arrayTypeName :: Raw.SQL
+  arrayTypeName = typeName @a <> "[]"
+
+  arrayElementDecoder :: Decoding.Array a
+  arrayElementDecoder = case decoder of
+    Decoder d -> Decoding.valueArray d
+    NullableDecoder d -> Decoding.nullableValueArray d
+
+data Decoder a where
+  Decoder :: Decoding.Value a -> Decoder a
+  NullableDecoder :: Decoding.Value a -> Decoder (Maybe a)
 
 -- | Arrays
 instance DatabaseType a => DatabaseType [a] where
   value as =
     Expr $ "ARRAY[" <> mconcat (intersperse ", " $ map arrayElement as) <> "]::" <> typeName @[a]
-  typeName = arrayElementTypeName @a <> "[]"
+  typeName = arrayTypeName @a
+  decoder = Decoder $ Decoding.array $ Decoding.dimensionArray replicateM arrayElementDecoder
   arrayElement a = "ROW(" <> coerce (value a) <> ")"
-  arrayElementTypeName = "record"
 
 -- | Rows
 instance {-# OVERLAPPABLE #-}
-  (HKD.Construct Identity table, HKD.ConstraintsB (HKD table), HKD.TraversableB (HKD table), Barbie.AllB DatabaseType (HKD table))
+  (Generic table, HKD.Construct Identity table, HKD.Construct Decoding.Composite table, HKD.ConstraintsB (HKD table), HKD.TraversableB (HKD table), Barbie.AllB DatabaseType (HKD table), HKD.Tuple (Const ()) table ())
   => DatabaseType table where
   value table =
     row $ Barbie.bmapC @DatabaseType (\(Identity field) -> value field) $ HKD.deconstruct table
   typeName = "record"
+  decoder =
+    Decoder $
+    Decoding.composite $
+    HKD.construct $
+    Barbie.bmapC
+      @DatabaseType
+      (\(Const ()) -> case decoder of
+        Decoder d -> Decoding.valueComposite d
+        NullableDecoder d -> Decoding.nullableValueComposite d
+      )
+      mempty
 
 -- | Nullable types
 -- TODO disallow nested maybes
@@ -225,121 +252,147 @@ instance DatabaseType a => DatabaseType (Maybe a) where
   value Nothing = Expr $ Raw.nullParam <> "::" <> typeName @a
   value (Just a) = coerce $ value a
   typeName = typeName @a
+  decoder = case decoder of
+    Decoder d -> NullableDecoder d
+    NullableDecoder _ -> error "TODO disallow nested maybes"
 
 -- | @boolean@
 instance DatabaseType Bool where
   value = param Encoding.bool
   typeName = "boolean"
+  decoder = Decoder Decoding.bool
 
 -- | @integer@
 instance DatabaseType Int where
   value = param $ Encoding.int4_int32 . fromIntegral
   typeName = "integer"
+  decoder = Decoder Decoding.int
 
 -- | @int2@
 instance DatabaseType Int16 where
   value = param Encoding.int2_int16
   typeName = "int2"
+  decoder = Decoder Decoding.int
 
 -- | @int4@
 instance DatabaseType Int32 where
   value = param Encoding.int4_int32
   typeName = "int4"
+  decoder = Decoder Decoding.int
 
 -- | @int8@
 instance DatabaseType Int64 where
   value = param Encoding.int8_int64
   typeName = "int8"
+  decoder = Decoder Decoding.int
 
 -- | @int2@
 instance DatabaseType Word16 where
   value = param Encoding.int2_word16
   typeName = "int2"
+  decoder = Decoder Decoding.int
 
 -- | @int4@
 instance DatabaseType Word32 where
   value = param Encoding.int4_word32
   typeName = "int4"
+  decoder = Decoder Decoding.int
 
 -- | @int8@
 instance DatabaseType Word64 where
   value = param Encoding.int8_word64
   typeName = "int8"
+  decoder = Decoder Decoding.int
 
 -- | @float4@
 instance DatabaseType Float where
   value = param Encoding.float4
   typeName = "float4"
+  decoder = Decoder Decoding.float4
 
 -- | @float8@
 instance DatabaseType Double where
   value = param Encoding.float8
   typeName = "float8"
+  decoder = Decoder Decoding.float8
 
 -- | @numeric@
 instance DatabaseType Scientific where
   value = param Encoding.numeric
   typeName = "numeric"
+  decoder = Decoder Decoding.numeric
 
 -- | @uuid@
 instance DatabaseType UUID where
   value = param Encoding.uuid
   typeName = "uuid"
+  decoder = Decoder Decoding.uuid
 
 -- | @character@
 instance DatabaseType Char where
   value = param Encoding.char_utf8
   typeName = "character"
+  decoder = Decoder Decoding.char
 
 -- | @text@
 instance DatabaseType Text where
   value = param Encoding.text_strict
   typeName = "text"
+  decoder = Decoder Decoding.text_strict
 
 -- | @text@
 instance DatabaseType Lazy.Text where
   value = param Encoding.text_lazy
   typeName = "text"
+  decoder = Decoder Decoding.text_lazy
 
 -- | @bytea@
 instance DatabaseType ByteString where
   value = param Encoding.bytea_strict
   typeName = "bytea"
+  decoder = Decoder Decoding.bytea_strict
 
 -- | @bytea@
 instance DatabaseType Lazy.ByteString where
   value = param Encoding.bytea_lazy
   typeName = "bytea"
+  decoder = Decoder Decoding.bytea_lazy
 
 -- | @date@
 instance DatabaseType Day where
   value = param Encoding.date
   typeName = "date"
+  decoder = Decoder Decoding.date
 
 -- | @time@
 instance DatabaseType TimeOfDay where
   value = param Encoding.time_int
   typeName = "time"
+  decoder = Decoder Decoding.time_int
 
 -- | @timetz@
 instance DatabaseType (TimeOfDay, TimeZone) where
   value = param Encoding.timetz_int
   typeName = "timetz"
+  decoder = Decoder Decoding.timetz_int
 
 -- | @timestamp@
 instance DatabaseType LocalTime where
   value = param Encoding.timestamp_int
   typeName = "timestamp"
+  decoder = Decoder Decoding.timestamp_int
 
 -- | @timestamptz@
 instance DatabaseType UTCTime where
   value = param Encoding.timestamptz_int
   typeName = "timestamptz"
+  decoder = Decoder Decoding.timestamptz_int
 
 -- | @interval@
 instance DatabaseType DiffTime where
   value = param Encoding.interval_int
   typeName = "interval"
+  decoder = Decoder Decoding.interval_int
 
 -------------------------------------------------------------------------------
 -- * Low-level utilities
