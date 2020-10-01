@@ -11,25 +11,37 @@
 {-# options_ghc -Wno-redundant-constraints #-}
 module Database.Woobat.Expr where
 
+import qualified ByteString.StrictBuilder as Builder
 import qualified Data.Barbie as Barbie
 import qualified Data.Barbie.Constraints as Barbie
+import Data.ByteString (ByteString)
+import qualified Data.ByteString.Lazy as Lazy
 import Data.Functor.Const
 import Data.Functor.Product
 import Data.Generic.HKD (HKD)
 import qualified Data.Generic.HKD as HKD
+import Data.Int
+import Data.Scientific
 import Data.String (IsString, fromString)
+import Data.Text (Text)
+import qualified Data.Text.Lazy as Lazy
+import Data.Time (Day, TimeOfDay, LocalTime, UTCTime, DiffTime, TimeZone)
+import Data.UUID.Types (UUID)
+import Data.Word
 import qualified Database.Woobat.Raw as Raw
 import qualified Database.Woobat.Scope as Scope
+import PostgreSQL.Binary.Encoding (Encoding)
+import qualified PostgreSQL.Binary.Encoding as Encoding
 
 newtype Expr s a = Expr Raw.SQL
 
 unsafeBinaryOperator :: Scope.Same s t => Raw.SQL -> Expr s a -> Expr t b -> Expr s c
 unsafeBinaryOperator name (Expr x) (Expr y) = Expr $ "(" <> x <> " " <> name <> " " <> y <> ")"
 
-instance (IsString a, Raw.DatabaseType a) => IsString (Expr s a) where
+instance (IsString a, DatabaseType a) => IsString (Expr s a) where
   fromString = value . fromString
 
-instance (Num a, Raw.DatabaseType a) => Num (Expr s a) where
+instance (Num a, DatabaseType a) => Num (Expr s a) where
   fromInteger = value . fromInteger
   (+) = unsafeBinaryOperator "+"
   (-) = unsafeBinaryOperator "-"
@@ -40,7 +52,7 @@ instance (Num a, Raw.DatabaseType a) => Num (Expr s a) where
 mod_ :: Num a => Expr s a -> Expr s a -> Expr s a
 mod_ = unsafeBinaryOperator "%"
 
-instance {-# OVERLAPPABLE #-} (Integral a, Raw.DatabaseType a) => Fractional (Expr s a) where
+instance {-# OVERLAPPABLE #-} (Integral a, DatabaseType a) => Fractional (Expr s a) where
   fromRational = value . (truncate :: Double -> a) . fromRational
   (/) = unsafeBinaryOperator "/"
 
@@ -55,9 +67,6 @@ newtype NullableExpr s a = NullableExpr (Expr s (Nullable a))
 type family Nullable a where
   Nullable (Maybe a) = Maybe a
   Nullable a = Maybe a
-
-value :: forall a s. Raw.DatabaseType a => a -> Expr s a
-value a = Expr $ Raw.value a <> "::" <> Raw.typeName @a
 
 -------------------------------------------------------------------------------
 -- * Equality
@@ -158,3 +167,111 @@ min_ (Expr e) = AggregateExpr $ "min(" <> e <> ")"
 
 sum_ :: (Num a, Num b) => Expr s a -> AggregateExpr s (Maybe b)
 sum_ (Expr e) = AggregateExpr $ "sum(" <> e <> ")"
+
+-------------------------------------------------------------------------------
+
+param :: Raw.SQL -> (a -> Encoding) -> a -> Expr s a
+param typeName encoding a =
+  Expr $ Raw.param (Builder.builderBytes $ encoding a) <> "::" <> typeName
+
+class DatabaseType a where
+  value :: a -> Expr s a
+
+-- | Nullable types
+instance DatabaseType a => DatabaseType (Maybe a) where
+  value Nothing = Expr Raw.nullParam
+  value (Just a) = Expr sql
+    where
+      Expr sql = value a
+
+-- | @boolean@
+instance DatabaseType Bool where
+  value = param "boolean" Encoding.bool
+
+-- | @integer@
+instance DatabaseType Int where
+  value = param "integer" $ Encoding.int4_int32 . fromIntegral
+
+-- | @int2@
+instance DatabaseType Int16 where
+  value = param "int2" Encoding.int2_int16
+
+-- | @int4@
+instance DatabaseType Int32 where
+  value = param "int4" Encoding.int4_int32
+
+-- | @int8@
+instance DatabaseType Int64 where
+  value = param "int8" Encoding.int8_int64
+
+-- | @int2@
+instance DatabaseType Word16 where
+  value = param "int2" Encoding.int2_word16
+
+-- | @int4@
+instance DatabaseType Word32 where
+  value = param "int4" Encoding.int4_word32
+
+-- | @int8@
+instance DatabaseType Word64 where
+  value = param "int8" Encoding.int8_word64
+
+-- | @float4@
+instance DatabaseType Float where
+  value = param "float4" Encoding.float4
+
+-- | @float8@
+instance DatabaseType Double where
+  value = param "float8" Encoding.float8
+
+-- | @numeric@
+instance DatabaseType Scientific where
+  value = param "numeric" Encoding.numeric
+
+-- | @uuid@
+instance DatabaseType UUID where
+  value = param "uuid" Encoding.uuid
+
+-- | @character@
+instance DatabaseType Char where
+  value = param "character" Encoding.char_utf8
+
+-- | @text@
+instance DatabaseType Text where
+  value = param "text" Encoding.text_strict
+
+-- | @text@
+instance DatabaseType Lazy.Text where
+  value = param "text" Encoding.text_lazy
+
+-- | @bytea@
+instance DatabaseType ByteString where
+  value = param "bytea" Encoding.bytea_strict
+
+-- | @bytea@
+instance DatabaseType Lazy.ByteString where
+  value = param "bytea" Encoding.bytea_lazy
+
+-- | @date@
+instance DatabaseType Day where
+  value = param "date" Encoding.date
+
+-- | @time@
+instance DatabaseType TimeOfDay where
+  value = param "time" Encoding.time_int
+
+-- | @timetz@
+instance DatabaseType (TimeOfDay, TimeZone) where
+  value = param "timetz" Encoding.timetz_int
+
+-- | @timestamp@
+instance DatabaseType LocalTime where
+  value = param "timestamp" Encoding.timestamp_int
+
+-- | @timestamptz@
+instance DatabaseType UTCTime where
+  value = param "timestamptz" Encoding.timestamptz_int
+
+-- | @interval@
+instance DatabaseType DiffTime where
+  value = param "interval" Encoding.interval_int
