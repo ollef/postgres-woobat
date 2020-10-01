@@ -198,11 +198,19 @@ row table = Expr $
 
 class DatabaseType a where
   value :: a -> Expr s a
+  typeName :: Raw.SQL
+  arrayElement :: a -> Raw.SQL
+  arrayElement = coerce $ value @a
+  arrayElementTypeName :: Raw.SQL
+  arrayElementTypeName = typeName @a
 
 -- | Arrays
 instance DatabaseType a => DatabaseType [a] where
   value as =
-    Expr $ "ARRAY[" <> mconcat (intersperse ", " $ map ((\(Expr sql) -> sql) . value) as) <> "]"
+    Expr $ "ARRAY[" <> mconcat (intersperse ", " $ map arrayElement as) <> "]::" <> typeName @[a]
+  typeName = arrayElementTypeName @a <> "[]"
+  arrayElement a = "ROW(" <> coerce (value a) <> ")"
+  arrayElementTypeName = "record"
 
 -- | Rows
 instance {-# OVERLAPPABLE #-}
@@ -210,111 +218,136 @@ instance {-# OVERLAPPABLE #-}
   => DatabaseType table where
   value table =
     row $ Barbie.bmapC @DatabaseType (\(Identity field) -> value field) $ HKD.deconstruct table
+  typeName = "record"
 
 -- | Nullable types
 -- TODO disallow nested maybes
 instance DatabaseType a => DatabaseType (Maybe a) where
-  value Nothing = Expr Raw.nullParam
+  value Nothing = Expr $ Raw.nullParam <> "::" <> typeName @a
   value (Just a) = coerce $ value a
+  typeName = typeName @a
 
 -- | @boolean@
 instance DatabaseType Bool where
-  value = param "boolean" Encoding.bool
+  value = param Encoding.bool
+  typeName = "boolean"
 
 -- | @integer@
 instance DatabaseType Int where
-  value = param "integer" $ Encoding.int4_int32 . fromIntegral
+  value = param $ Encoding.int4_int32 . fromIntegral
+  typeName = "integer"
 
 -- | @int2@
 instance DatabaseType Int16 where
-  value = param "int2" Encoding.int2_int16
+  value = param Encoding.int2_int16
+  typeName = "int2"
 
 -- | @int4@
 instance DatabaseType Int32 where
-  value = param "int4" Encoding.int4_int32
+  value = param Encoding.int4_int32
+  typeName = "int4"
 
 -- | @int8@
 instance DatabaseType Int64 where
-  value = param "int8" Encoding.int8_int64
+  value = param Encoding.int8_int64
+  typeName = "int8"
 
 -- | @int2@
 instance DatabaseType Word16 where
-  value = param "int2" Encoding.int2_word16
+  value = param Encoding.int2_word16
+  typeName = "int2"
 
 -- | @int4@
 instance DatabaseType Word32 where
-  value = param "int4" Encoding.int4_word32
+  value = param Encoding.int4_word32
+  typeName = "int4"
 
 -- | @int8@
 instance DatabaseType Word64 where
-  value = param "int8" Encoding.int8_word64
+  value = param Encoding.int8_word64
+  typeName = "int8"
 
 -- | @float4@
 instance DatabaseType Float where
-  value = param "float4" Encoding.float4
+  value = param Encoding.float4
+  typeName = "float4"
 
 -- | @float8@
 instance DatabaseType Double where
-  value = param "float8" Encoding.float8
+  value = param Encoding.float8
+  typeName = "float8"
 
 -- | @numeric@
 instance DatabaseType Scientific where
-  value = param "numeric" Encoding.numeric
+  value = param Encoding.numeric
+  typeName = "numeric"
 
 -- | @uuid@
 instance DatabaseType UUID where
-  value = param "uuid" Encoding.uuid
+  value = param Encoding.uuid
+  typeName = "uuid"
 
 -- | @character@
 instance DatabaseType Char where
-  value = param "character" Encoding.char_utf8
+  value = param Encoding.char_utf8
+  typeName = "character"
 
 -- | @text@
 instance DatabaseType Text where
-  value = param "text" Encoding.text_strict
+  value = param Encoding.text_strict
+  typeName = "text"
 
 -- | @text@
 instance DatabaseType Lazy.Text where
-  value = param "text" Encoding.text_lazy
+  value = param Encoding.text_lazy
+  typeName = "text"
 
 -- | @bytea@
 instance DatabaseType ByteString where
-  value = param "bytea" Encoding.bytea_strict
+  value = param Encoding.bytea_strict
+  typeName = "bytea"
 
 -- | @bytea@
 instance DatabaseType Lazy.ByteString where
-  value = param "bytea" Encoding.bytea_lazy
+  value = param Encoding.bytea_lazy
+  typeName = "bytea"
 
 -- | @date@
 instance DatabaseType Day where
-  value = param "date" Encoding.date
+  value = param Encoding.date
+  typeName = "date"
 
 -- | @time@
 instance DatabaseType TimeOfDay where
-  value = param "time" Encoding.time_int
+  value = param Encoding.time_int
+  typeName = "time"
 
 -- | @timetz@
 instance DatabaseType (TimeOfDay, TimeZone) where
-  value = param "timetz" Encoding.timetz_int
+  value = param Encoding.timetz_int
+  typeName = "timetz"
 
 -- | @timestamp@
 instance DatabaseType LocalTime where
-  value = param "timestamp" Encoding.timestamp_int
+  value = param Encoding.timestamp_int
+  typeName = "timestamp"
 
 -- | @timestamptz@
 instance DatabaseType UTCTime where
-  value = param "timestamptz" Encoding.timestamptz_int
+  value = param Encoding.timestamptz_int
+  typeName = "timestamptz"
 
 -- | @interval@
 instance DatabaseType DiffTime where
-  value = param "interval" Encoding.interval_int
+  value = param Encoding.interval_int
+  typeName = "interval"
 
 -------------------------------------------------------------------------------
 -- * Low-level utilities
 
-param :: Raw.SQL -> (a -> Encoding) -> a -> Expr s a
-param typeName encoding a =
-  Expr $ Raw.param (Builder.builderBytes $ encoding a) <> "::" <> typeName
+param :: forall s a. DatabaseType a => (a -> Encoding) -> a -> Expr s a
+param encoding a =
+  Expr $ Raw.param (Builder.builderBytes $ encoding a) <> "::" <> typeName @a
 
 unsafeBinaryOperator :: Scope.Same s t => Raw.SQL -> Expr s a -> Expr t b -> Expr s c
 unsafeBinaryOperator name (Expr x) (Expr y) = Expr $ "(" <> x <> " " <> name <> " " <> y <> ")"
