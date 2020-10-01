@@ -1,12 +1,4 @@
-{-# language AllowAmbiguousTypes #-}
-{-# language DeriveFoldable #-}
-{-# language DeriveFunctor #-}
 {-# language DeriveTraversable #-}
-{-# language FlexibleInstances #-}
-{-# language GeneralizedNewtypeDeriving #-}
-{-# language OverloadedStrings #-}
-{-# language ScopedTypeVariables #-}
-{-# language TypeApplications #-}
 module Database.Woobat.Raw where
 
 import ByteString.StrictBuilder (Builder)
