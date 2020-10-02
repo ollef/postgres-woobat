@@ -255,18 +255,20 @@ row table =
 
 data JSONB a
 
+class DatabaseType a => FromJSON a where
+  fromJSON :: Expr s (JSONB a) -> Expr s a
+  fromJSON (Expr e) = Expr $ e <> "::" <> typeName @Text <> "::" <> typeName @a
+
 instance DatabaseType (JSONB a) where
   typeName = "jsonb"
 
 instance ArrayElement (JSONB a)
 
+instance FromJSON (JSONB a) where
+  fromJSON = coerce
+
 toJSONB :: Expr s a -> Expr s (JSONB a)
 toJSONB (Expr e) = Expr $ "TO_JSONB(" <> e <> ")"
-
-class DatabaseType a => FromJSON a where
-  fromJSON :: Expr s (JSONB a) -> Expr s a
-  fromJSON (Expr e) = Expr $ e <> "::" <> typeName @Text <> "::" <> typeName @a
-
 -------------------------------------------------------------------------------
 
 -- * Nullable types
