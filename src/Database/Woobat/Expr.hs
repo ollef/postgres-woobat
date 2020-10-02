@@ -215,6 +215,10 @@ array :: forall s a. DatabaseType a => [Expr s a] -> Expr s [a]
 array exprs =
   Expr $
     "ARRAY[" <> mconcat (intersperse ", " $ map arrayElement exprs) <> "]::" <> typeName @[a]
+
+instance Semigroup (Expr s [a]) where
+  (<>) = unsafeBinaryOperator "||"
+
 -------------------------------------------------------------------------------
 
 -- * Rows
