@@ -17,6 +17,7 @@ module Database.Woobat.Expr where
 
 import qualified ByteString.StrictBuilder as Builder
 import Control.Monad
+import Control.Monad.State
 import qualified Data.Barbie as Barbie
 import qualified Data.Barbie.Constraints as Barbie
 import Data.ByteString (ByteString)
@@ -254,6 +255,18 @@ row table =
 
 data JSONB a
 
+instance DatabaseType (JSONB a) where
+  typeName = "jsonb"
+
+instance ArrayElement (JSONB a)
+
+toJSONB :: forall s a. DatabaseType a => Expr s a -> Expr s (JSONB a)
+toJSONB (Expr e) = Expr $ "TO_JSON(" <> e <> ")::" <> typeName @(JSONB a)
+
+class DatabaseType a => FromJSON a where
+  fromJSON :: Expr s (JSONB a) -> Expr s a
+  fromJSON (Expr e) = Expr $ e <> "::" <> typeName @Text <> "::" <> typeName @a
+
 -------------------------------------------------------------------------------
 
 -- * Nullable types
@@ -274,6 +287,33 @@ maybe_ def f m = ifThenElse (isNothing_ m) def (f $ coerce m)
 
 fromMaybe_ :: Expr s a -> Expr s (Maybe a) -> Expr s a
 fromMaybe_ def = maybe_ def id
+
+instance (NonNestedMaybe a, DatabaseType a) => DatabaseType (Maybe a) where
+  typeName = typeName @a
+
+instance (NonNestedMaybe a, Encode a) => Encode (Maybe a) where
+  encode Nothing = nothing
+  encode (Just a) = just $ encode a
+
+instance (NonNestedMaybe a, Decode a) => Decode (Maybe a) where
+  decoder = case decoder of
+    Decoder d -> NullableDecoder d
+    NullableDecoder _ -> impossible
+
+instance (NonNestedMaybe a, FromJSON a) => FromJSON (Maybe a) where
+  fromJSON json =
+    ifThenElse (json ==. toJSONB nothing) nothing (just $ fromJSON $ coerce json)
+
+type family NonNestedMaybe a :: Constraint where
+  NonNestedMaybe (Maybe a) =
+    ( TypeError
+        ( 'Text "Attempt to use a nested ‘Maybe’ as a database type:"
+            ':<>: 'ShowType (Maybe (Maybe a))
+            ':<>: 'Text "Since Woobat maps ‘Maybe’ types to nullable database types and there is only one null, nesting is not supported."
+        )
+    , Impossible
+    )
+  NonNestedMaybe _ = ()
 
 -------------------------------------------------------------------------------
 
@@ -314,6 +354,12 @@ instance (ArrayElement a, Decode a) => Decode [a] where
           Decoder d -> Decoding.valueArray d
           NullableDecoder d -> Decoding.nullableValueArray d
 
+instance (ArrayElement a, FromJSON a) => FromJSON [a] where
+  fromJSON (Expr json) =
+    Expr $
+      -- TODO needs fresh names
+      "ARRAY(SELECT " <> coerce (fromJSON @a $ Expr "element.value") <> " FROM JSON_ARRAY_ELEMENTS(" <> json <> ") AS element)"
+
 -- | Rows
 instance {-# OVERLAPPABLE #-} (HKD.FunctorB (HKD table)) => DatabaseType table where
   typeName = "record"
@@ -342,31 +388,22 @@ instance
                 NullableDecoder d -> Decoding.nullableValueComposite d
             )
             mempty
+
 instance {-# OVERLAPPABLE #-} (HKD.FunctorB (HKD table)) => ArrayElement table
 
--- | Nullable types
-instance (NonNestedMaybe a, DatabaseType a) => DatabaseType (Maybe a) where
-  typeName = typeName @a
-
-instance (NonNestedMaybe a, Encode a) => Encode (Maybe a) where
-  encode Nothing = Expr $ Raw.nullParam <> "::" <> typeName @a
-  encode (Just a) = coerce $ encode a
-
-instance (NonNestedMaybe a, Decode a) => Decode (Maybe a) where
-  decoder = case decoder of
-    Decoder d -> NullableDecoder d
-    NullableDecoder _ -> impossible
-
-type family NonNestedMaybe a :: Constraint where
-  NonNestedMaybe (Maybe a) =
-    ( TypeError
-        ( 'Text "Attempt to use a nested ‘Maybe’ as a database type:"
-            ':<>: 'ShowType (Maybe (Maybe a))
-            ':<>: 'Text "Since Woobat maps ‘Maybe’ types to nullable database types and there is only one null, nesting is not supported."
-        )
-    , Impossible
-    )
-  NonNestedMaybe _ = ()
+instance
+  {-# OVERLAPPABLE #-}
+  (Generic table, HKD.ConstraintsB (HKD table), HKD.TraversableB (HKD table), HKD.AllB FromJSON (HKD table), HKD.Tuple (Const ()) table ()) =>
+  FromJSON table
+  where
+  fromJSON (Expr json) =
+    row $ flip evalState 1 $ Barbie.btraverseC @FromJSON go mempty
+    where
+      go :: forall s x. FromJSON x => Const () x -> State Int (Expr s x)
+      go (Const ()) = do
+        i <- get
+        put $! i + 1
+        return $ fromJSON $ Expr $ json <> "->'f" <> fromString (show i) <> "'"
 
 -- | @boolean@
 instance DatabaseType Bool where
@@ -378,6 +415,8 @@ instance Encode Bool where
 instance Decode Bool where
   decoder = Decoder Decoding.bool
 
+instance FromJSON Bool
+
 -- | @integer@
 instance DatabaseType Int where
   typeName = "integer"
@@ -387,6 +426,8 @@ instance Encode Int where
 
 instance Decode Int where
   decoder = Decoder Decoding.int
+
+instance FromJSON Int
 
 -- | @int2@
 instance DatabaseType Int16 where
@@ -398,6 +439,8 @@ instance Encode Int16 where
 instance Decode Int16 where
   decoder = Decoder Decoding.int
 
+instance FromJSON Int16
+
 -- | @int4@
 instance DatabaseType Int32 where
   typeName = "int4"
@@ -407,6 +450,8 @@ instance Encode Int32 where
 
 instance Decode Int32 where
   decoder = Decoder Decoding.int
+
+instance FromJSON Int32
 
 -- | @int8@
 instance DatabaseType Int64 where
@@ -418,6 +463,8 @@ instance Encode Int64 where
 instance Decode Int64 where
   decoder = Decoder Decoding.int
 
+instance FromJSON Int64
+
 -- | @int2@
 instance DatabaseType Word16 where
   typeName = "int2"
@@ -427,6 +474,8 @@ instance Encode Word16 where
 
 instance Decode Word16 where
   decoder = Decoder Decoding.int
+
+instance FromJSON Word16
 
 -- | @int4@
 instance DatabaseType Word32 where
@@ -438,6 +487,8 @@ instance Encode Word32 where
 instance Decode Word32 where
   decoder = Decoder Decoding.int
 
+instance FromJSON Word32
+
 -- | @int8@
 instance DatabaseType Word64 where
   typeName = "int8"
@@ -447,6 +498,8 @@ instance Encode Word64 where
 
 instance Decode Word64 where
   decoder = Decoder Decoding.int
+
+instance FromJSON Word64
 
 -- | @float4@
 instance DatabaseType Float where
@@ -458,6 +511,8 @@ instance Encode Float where
 instance Decode Float where
   decoder = Decoder Decoding.float4
 
+instance FromJSON Float
+
 -- | @float8@
 instance DatabaseType Double where
   typeName = "float8"
@@ -467,6 +522,8 @@ instance Encode Double where
 
 instance Decode Double where
   decoder = Decoder Decoding.float8
+
+instance FromJSON Double
 
 -- | @numeric@
 instance DatabaseType Scientific where
@@ -478,6 +535,8 @@ instance Encode Scientific where
 instance Decode Scientific where
   decoder = Decoder Decoding.numeric
 
+instance FromJSON Scientific
+
 -- | @uuid@
 instance DatabaseType UUID where
   typeName = "uuid"
@@ -487,6 +546,9 @@ instance Encode UUID where
 
 instance Decode UUID where
   decoder = Decoder Decoding.uuid
+
+instance FromJSON UUID where
+  fromJSON (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> typeName @UUID
 
 -- | @character@
 instance DatabaseType Char where
@@ -498,6 +560,9 @@ instance Encode Char where
 instance Decode Char where
   decoder = Decoder Decoding.char
 
+instance FromJSON Char where
+  fromJSON (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> typeName @Char
+
 -- | @text@
 instance DatabaseType Text where
   typeName = "text"
@@ -507,6 +572,9 @@ instance Encode Text where
 
 instance Decode Text where
   decoder = Decoder Decoding.text_strict
+
+instance FromJSON Text where
+  fromJSON (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> typeName @Text
 
 -- | @text@
 instance DatabaseType Lazy.Text where
@@ -518,6 +586,9 @@ instance Encode Lazy.Text where
 instance Decode Lazy.Text where
   decoder = Decoder Decoding.text_lazy
 
+instance FromJSON Lazy.Text where
+  fromJSON (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> typeName @Lazy.Text
+
 -- | @bytea@
 instance DatabaseType ByteString where
   typeName = "bytea"
@@ -527,6 +598,9 @@ instance Encode ByteString where
 
 instance Decode ByteString where
   decoder = Decoder Decoding.bytea_strict
+
+instance FromJSON ByteString where
+  fromJSON (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> typeName @ByteString
 
 -- | @bytea@
 instance DatabaseType Lazy.ByteString where
@@ -538,6 +612,9 @@ instance Encode Lazy.ByteString where
 instance Decode Lazy.ByteString where
   decoder = Decoder Decoding.bytea_lazy
 
+instance FromJSON Lazy.ByteString where
+  fromJSON (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> typeName @Lazy.ByteString
+
 -- | @date@
 instance DatabaseType Day where
   typeName = "date"
@@ -547,6 +624,9 @@ instance Encode Day where
 
 instance Decode Day where
   decoder = Decoder Decoding.date
+
+instance FromJSON Day where
+  fromJSON (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> typeName @Day
 
 -- | @time@
 instance DatabaseType TimeOfDay where
@@ -558,6 +638,9 @@ instance Encode TimeOfDay where
 instance Decode TimeOfDay where
   decoder = Decoder Decoding.time_int
 
+instance FromJSON TimeOfDay where
+  fromJSON (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> typeName @TimeOfDay
+
 -- | @timetz@
 instance DatabaseType (TimeOfDay, TimeZone) where
   typeName = "timetz"
@@ -567,6 +650,9 @@ instance Encode (TimeOfDay, TimeZone) where
 
 instance Decode (TimeOfDay, TimeZone) where
   decoder = Decoder Decoding.timetz_int
+
+instance FromJSON (TimeOfDay, TimeZone) where
+  fromJSON (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> typeName @(TimeOfDay, TimeZone)
 
 -- | @timestamp@
 instance DatabaseType LocalTime where
@@ -578,6 +664,9 @@ instance Encode LocalTime where
 instance Decode LocalTime where
   decoder = Decoder Decoding.timestamp_int
 
+instance FromJSON LocalTime where
+  fromJSON (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> typeName @LocalTime
+
 -- | @timestamptz@
 instance DatabaseType UTCTime where
   typeName = "timestamptz"
@@ -588,6 +677,9 @@ instance Encode UTCTime where
 instance Decode UTCTime where
   decoder = Decoder Decoding.timestamptz_int
 
+instance FromJSON UTCTime where
+  fromJSON (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> typeName @UTCTime
+
 -- | @interval@
 instance DatabaseType DiffTime where
   typeName = "interval"
@@ -597,6 +689,9 @@ instance Encode DiffTime where
 
 instance Decode DiffTime where
   decoder = Decoder Decoding.interval_int
+
+instance FromJSON DiffTime where
+  fromJSON (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> typeName @DiffTime
 
 -------------------------------------------------------------------------------
 
