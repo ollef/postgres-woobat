@@ -247,10 +247,7 @@ arrayLength (Expr e) = Expr $ "array_length(" <> e <> ", 1)"
 
 row :: HKD.TraversableB (HKD table) => HKD table (Expr s) -> Expr s table
 row table =
-  Expr $
-    "ROW("
-      <> mconcat (intersperse ", " $ Barbie.bfoldMap (\(Expr e) -> [e]) table)
-      <> ")"
+  Expr $ "ROW(" <> mconcat (intersperse ", " $ Barbie.bfoldMap (\(Expr e) -> [e]) table) <> ")"
 -------------------------------------------------------------------------------
 
 -- * JSON
