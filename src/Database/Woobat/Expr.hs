@@ -1,4 +1,5 @@
 {-# language AllowAmbiguousTypes #-}
+{-# language DataKinds #-}
 {-# language FlexibleContexts #-}
 {-# language FlexibleInstances #-}
 {-# language FunctionalDependencies #-}
@@ -7,6 +8,7 @@
 {-# language ScopedTypeVariables #-}
 {-# language TypeApplications #-}
 {-# language TypeFamilies #-}
+{-# language TypeOperators #-}
 {-# language UndecidableInstances #-}
 {-# options_ghc -Wno-redundant-constraints #-}
 module Database.Woobat.Expr where
@@ -24,6 +26,7 @@ import Data.Functor.Product
 import Data.Generic.HKD (HKD)
 import qualified Data.Generic.HKD as HKD
 import Data.Int
+import Data.Kind (Constraint)
 import Data.List
 import Data.Scientific
 import Data.String (IsString, fromString)
@@ -35,6 +38,7 @@ import Data.Word
 import qualified Database.Woobat.Raw as Raw
 import qualified Database.Woobat.Scope as Scope
 import GHC.Generics
+import GHC.TypeLits (TypeError, ErrorMessage(..))
 import qualified PostgreSQL.Binary.Decoding as Decoding
 import PostgreSQL.Binary.Encoding (Encoding)
 import qualified PostgreSQL.Binary.Encoding as Encoding
@@ -246,15 +250,25 @@ instance {-# OVERLAPPABLE #-}
       )
       mempty
 
+class Impossible where
+  impossible :: a
+
+type family NonNestedMaybe a :: Constraint where
+  NonNestedMaybe (Maybe a) = (TypeError
+    ( 'Text "Attempt to use a nested Maybe as a database type:"
+    ':<>: 'ShowType (Maybe (Maybe a))
+    ':<>: 'Text "Since Woobat maps Maybe types to nullable database types, nested Maybes are not supported."
+    ), Impossible)
+  NonNestedMaybe _ = ()
+
 -- | Nullable types
--- TODO disallow nested maybes
-instance DatabaseType a => DatabaseType (Maybe a) where
+instance (NonNestedMaybe a, DatabaseType a) => DatabaseType (Maybe a) where
   value Nothing = Expr $ Raw.nullParam <> "::" <> typeName @a
   value (Just a) = coerce $ value a
   typeName = typeName @a
   decoder = case decoder of
     Decoder d -> NullableDecoder d
-    NullableDecoder _ -> error "TODO disallow nested maybes"
+    NullableDecoder _ -> impossible
 
 -- | @boolean@
 instance DatabaseType Bool where
