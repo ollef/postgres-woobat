@@ -18,8 +18,8 @@ data SelectState = SelectState
   , rawSelect :: !Raw.Select
   }
 
-freshNameWithSuggestion :: ByteString -> State SelectState ByteString
-freshNameWithSuggestion suggestion = do
+freshName :: ByteString -> State SelectState ByteString
+freshName suggestion = do
   used <- gets usedNames
   let count = HashMap.lookupDefault 0 suggestion used
   modify $ \s -> s {usedNames = HashMap.insert suggestion (count + 1) used}

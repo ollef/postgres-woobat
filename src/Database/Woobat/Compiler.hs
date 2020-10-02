@@ -29,8 +29,8 @@ instance Semigroup a => Semigroup (Compiler a) where
 instance IsString a => IsString (Compiler a) where
   fromString = pure . fromString
 
-freshNameWithSuggestion :: ByteString -> Compiler ByteString
-freshNameWithSuggestion suggestion = Compiler $ do
+freshName :: ByteString -> Compiler ByteString
+freshName suggestion = Compiler $ do
   used <- get
   let usedCount = HashMap.lookupDefault 0 suggestion used
   put $ HashMap.insert suggestion (usedCount + 1) used
@@ -57,7 +57,7 @@ compileFrom :: Raw.From -> Compiler Raw.SQL
 compileFrom from =
   case from of
     Raw.Unit ->
-      "(VALUES (0)) " <> fmap Raw.code (freshNameWithSuggestion "unit")
+      "(VALUES (0)) " <> fmap Raw.code (freshName "unit")
     Raw.Table name alias
       | name == alias ->
         pure $ Raw.code name

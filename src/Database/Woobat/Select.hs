@@ -48,7 +48,7 @@ from ::
 from table = Select $ do
   let tableName =
         Text.encodeUtf8 $ Table.name table
-  alias <- freshNameWithSuggestion tableName
+  alias <- freshName tableName
   let tableRow :: HKD table (Expr s)
       tableRow =
         HKD.bmap (\(Const columnName) -> Expr $ Raw.code $ alias <> "." <> Text.encodeUtf8 columnName) $ Table.columnNames table
@@ -99,11 +99,11 @@ leftJoin (Select sel) on = Select $ do
           }
       return $ toLeft @s @a innerResultsBarbie
     _ -> do
-      alias <- freshNameWithSuggestion "subquery"
+      alias <- freshName "subquery"
       namedResults :: ToBarbie (Expr (Inner s)) a (Product (Const ByteString) (Expr (Inner s))) <-
         HKD.btraverse
           ( \e -> do
-              name <- freshNameWithSuggestion "col"
+              name <- freshName "col"
               pure $ Pair (Const name) e
           )
           innerResultsBarbie
@@ -136,11 +136,11 @@ aggregate ::
   Select t (FromAggregate s a)
 aggregate (Select sel) = Select $ do
   (aggSelect, innerResults) <- subquery sel
-  alias <- freshNameWithSuggestion "subquery"
+  alias <- freshName "subquery"
   namedResults :: ToBarbie (AggregateExpr (Inner s)) a (Product (Const ByteString) (AggregateExpr (Inner s))) <-
     HKD.btraverse
       ( \e -> do
-          name <- freshNameWithSuggestion "col"
+          name <- freshName "col"
           pure $ Pair (Const name) e
       )
       (toBarbie innerResults)
@@ -167,6 +167,6 @@ groupBy (Expr expr) = Select $ do
 
 unnest :: (Same s t, Same t u) => Expr s [a] -> Select t (Expr u a)
 unnest (Expr arr) = Select $ do
-  alias <- freshNameWithSuggestion "unnested_array"
+  alias <- freshName "unnested_array"
   addSelect mempty {Raw.from = Raw.Set ("UNNEST(" <> arr <> ")") alias}
   pure $ Expr $ Raw.code alias
