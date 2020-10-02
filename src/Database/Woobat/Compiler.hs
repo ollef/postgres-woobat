@@ -20,6 +20,9 @@ import qualified Database.Woobat.Raw as Raw
 newtype Compiler a = Compiler (State (HashMap ByteString Int) a)
   deriving (Functor, Applicative, Monad, MonadState (HashMap ByteString Int))
 
+run :: HashMap ByteString Int -> Compiler a -> a
+run usedNames (Compiler s) = evalState s usedNames
+
 instance Monoid a => Monoid (Compiler a) where
   mempty = pure mempty
 
