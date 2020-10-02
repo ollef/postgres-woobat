@@ -295,14 +295,7 @@ instance
   (Generic table, HKD.ConstraintsB (HKD table), HKD.TraversableB (HKD table), HKD.AllB FromJSON (HKD table), HKD.Tuple (Const ()) table ()) =>
   FromJSON table
   where
-  fromJSON (Expr json) =
-    row $ flip evalState 1 $ Barbie.btraverseC @FromJSON go mempty
-    where
-      go :: forall s x. FromJSON x => Const () x -> State Int (Expr s x)
-      go (Const ()) = do
-        i <- get
-        put $! i + 1
-        return $ fromJSON $ Expr $ json <> "->'f" <> fromString (show i) <> "'"
+  fromJSON = row . unJSONRow
 
 -------------------------------------------------------------------------------
 
