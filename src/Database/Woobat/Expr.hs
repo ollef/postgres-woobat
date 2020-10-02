@@ -65,20 +65,20 @@ type family Nullable a where
 
 -- * Strings
 
-instance (IsString a, Encode a) => IsString (Expr s a) where
+instance (IsString a, PostgresType a) => IsString (Expr s a) where
   fromString = encode . fromString
 
 instance Semigroup (Expr s Text) where
   (<>) = unsafeBinaryOperator "||"
 
-instance (Encode a, Semigroup (Expr s a), Monoid a) => Monoid (Expr s a) where
+instance (PostgresType a, Semigroup (Expr s a), Monoid a) => Monoid (Expr s a) where
   mempty = encode mempty
 
 -------------------------------------------------------------------------------
 
 -- * Numerics
 
-instance (Num a, Encode a) => Num (Expr s a) where
+instance (Num a, PostgresType a) => Num (Expr s a) where
   fromInteger = encode . fromInteger
   (+) = unsafeBinaryOperator "+"
   (-) = unsafeBinaryOperator "-"
@@ -89,7 +89,7 @@ instance (Num a, Encode a) => Num (Expr s a) where
 mod_ :: Num a => Expr s a -> Expr s a -> Expr s a
 mod_ = unsafeBinaryOperator "%"
 
-instance {-# OVERLAPPABLE #-} (Integral a, Encode a) => Fractional (Expr s a) where
+instance {-# OVERLAPPABLE #-} (Integral a, PostgresType a) => Fractional (Expr s a) where
   fromRational = encode . (truncate :: Double -> a) . fromRational
   (/) = unsafeBinaryOperator "/"
 
@@ -248,11 +248,7 @@ arrayLength (Expr e) = Expr $ "array_length(" <> e <> ", 1)"
 
 instance (NonNestedArray a, PostgresType a) => PostgresType [a] where
   typeName = typeName @a <> "[]"
-
-instance (NonNestedArray a, Encode a) => Encode [a] where
   encode = array . map encode
-
-instance (NonNestedArray a, Decode a) => Decode [a] where
   decoder = Decoder $
     Decoding.array $
       Decoding.dimensionArray
@@ -296,28 +292,27 @@ unJSONRow (Expr json) =
       put $! i + 1
       return $ fromJSON $ Expr $ json <> "->'f" <> fromString (show i) <> "'"
 
-instance {-# OVERLAPPABLE #-} (HKD.FunctorB (HKD table)) => PostgresType table where
+instance
+  {-# OVERLAPPABLE #-}
+  ( Generic table
+  , HKD.Construct Identity table
+  , HKD.Construct Decoding.Composite table
+  , HKD.ConstraintsB (HKD table)
+  , HKD.TraversableB (HKD table)
+  , Barbie.AllB PostgresType (HKD table)
+  , HKD.Tuple (Const ()) table ()
+  ) =>
+  PostgresType table
+  where
   typeName = "record"
-
-instance
-  {-# OVERLAPPABLE #-}
-  (HKD.Construct Identity table, HKD.ConstraintsB (HKD table), HKD.TraversableB (HKD table), Barbie.AllB Encode (HKD table), HKD.Tuple (Const ()) table ()) =>
-  Encode table
-  where
   encode table =
-    row $ Barbie.bmapC @Encode (\(Identity field) -> encode field) $ HKD.deconstruct table
-
-instance
-  {-# OVERLAPPABLE #-}
-  (Generic table, HKD.Construct Decoding.Composite table, HKD.ConstraintsB (HKD table), Barbie.AllB Decode (HKD table), HKD.Tuple (Const ()) table ()) =>
-  Decode table
-  where
+    row $ Barbie.bmapC @PostgresType (\(Identity field) -> encode field) $ HKD.deconstruct table
   decoder =
     Decoder $
       Decoding.composite $
         HKD.construct $
           Barbie.bmapC
-            @Decode
+            @PostgresType
             ( \(Const ()) -> case decoder of
                 Decoder d -> Decoding.valueComposite d
                 NullableDecoder d -> Decoding.nullableValueComposite d
@@ -326,7 +321,15 @@ instance
 
 instance
   {-# OVERLAPPABLE #-}
-  (Generic table, HKD.ConstraintsB (HKD table), HKD.TraversableB (HKD table), HKD.AllB FromJSON (HKD table), HKD.Tuple (Const ()) table ()) =>
+  ( Generic table
+  , HKD.Construct Identity table
+  , HKD.Construct Decoding.Composite table
+  , HKD.ConstraintsB (HKD table)
+  , HKD.TraversableB (HKD table)
+  , Barbie.AllB PostgresType (HKD table)
+  , Barbie.AllB FromJSON (HKD table)
+  , HKD.Tuple (Const ()) table ()
+  ) =>
   FromJSON table
   where
   fromJSON = row . unJSONRow
@@ -343,12 +346,8 @@ class PostgresType a => FromJSON a where
 
 instance PostgresType (JSONB a) where
   typeName = "jsonb"
-
-instance Encode (JSONB a) where
   encode (JSONB value) =
     Expr $ Raw.param (Builder.builderBytes $ Encoding.jsonb_ast value) <> "::" <> typeName @(JSONB a)
-
-instance Decode (JSONB a) where
   decoder =
     Decoder $ JSONB <$> Decoding.jsonb_ast
 
@@ -380,12 +379,8 @@ fromMaybe_ def = maybe_ def id
 
 instance (NonNestedMaybe a, PostgresType a) => PostgresType (Maybe a) where
   typeName = typeName @a
-
-instance (NonNestedMaybe a, Encode a) => Encode (Maybe a) where
   encode Nothing = nothing
   encode (Just a) = just $ encode a
-
-instance (NonNestedMaybe a, Decode a) => Decode (Maybe a) where
   decoder = case decoder of
     Decoder d -> NullableDecoder d
     NullableDecoder _ -> impossible
@@ -412,13 +407,7 @@ type family NonNestedMaybe a :: Constraint where
 -- | Types with a corresponding database type
 class PostgresType a where
   typeName :: Raw.SQL
-
--- | Types that can be encoded to database expressions
-class PostgresType a => Encode a where
   encode :: a -> Expr s a
-
--- | Types that can be decoded from database results
-class PostgresType a => Decode a where
   decoder :: Decoder a
 
 data Decoder a where
@@ -428,11 +417,7 @@ data Decoder a where
 -- | @boolean@
 instance PostgresType Bool where
   typeName = "boolean"
-
-instance Encode Bool where
   encode = param Encoding.bool
-
-instance Decode Bool where
   decoder = Decoder Decoding.bool
 
 instance FromJSON Bool
@@ -440,11 +425,7 @@ instance FromJSON Bool
 -- | @integer@
 instance PostgresType Int where
   typeName = "integer"
-
-instance Encode Int where
   encode = param $ Encoding.int4_int32 . fromIntegral
-
-instance Decode Int where
   decoder = Decoder Decoding.int
 
 instance FromJSON Int
@@ -452,11 +433,7 @@ instance FromJSON Int
 -- | @int2@
 instance PostgresType Int16 where
   typeName = "int2"
-
-instance Encode Int16 where
   encode = param Encoding.int2_int16
-
-instance Decode Int16 where
   decoder = Decoder Decoding.int
 
 instance FromJSON Int16
@@ -464,11 +441,7 @@ instance FromJSON Int16
 -- | @int4@
 instance PostgresType Int32 where
   typeName = "int4"
-
-instance Encode Int32 where
   encode = param Encoding.int4_int32
-
-instance Decode Int32 where
   decoder = Decoder Decoding.int
 
 instance FromJSON Int32
@@ -476,11 +449,7 @@ instance FromJSON Int32
 -- | @int8@
 instance PostgresType Int64 where
   typeName = "int8"
-
-instance Encode Int64 where
   encode = param Encoding.int8_int64
-
-instance Decode Int64 where
   decoder = Decoder Decoding.int
 
 instance FromJSON Int64
@@ -488,11 +457,7 @@ instance FromJSON Int64
 -- | @int2@
 instance PostgresType Word16 where
   typeName = "int2"
-
-instance Encode Word16 where
   encode = param Encoding.int2_word16
-
-instance Decode Word16 where
   decoder = Decoder Decoding.int
 
 instance FromJSON Word16
@@ -500,11 +465,7 @@ instance FromJSON Word16
 -- | @int4@
 instance PostgresType Word32 where
   typeName = "int4"
-
-instance Encode Word32 where
   encode = param Encoding.int4_word32
-
-instance Decode Word32 where
   decoder = Decoder Decoding.int
 
 instance FromJSON Word32
@@ -512,11 +473,7 @@ instance FromJSON Word32
 -- | @int8@
 instance PostgresType Word64 where
   typeName = "int8"
-
-instance Encode Word64 where
   encode = param Encoding.int8_word64
-
-instance Decode Word64 where
   decoder = Decoder Decoding.int
 
 instance FromJSON Word64
@@ -524,11 +481,7 @@ instance FromJSON Word64
 -- | @float4@
 instance PostgresType Float where
   typeName = "float4"
-
-instance Encode Float where
   encode = param Encoding.float4
-
-instance Decode Float where
   decoder = Decoder Decoding.float4
 
 instance FromJSON Float
@@ -536,11 +489,7 @@ instance FromJSON Float
 -- | @float8@
 instance PostgresType Double where
   typeName = "float8"
-
-instance Encode Double where
   encode = param Encoding.float8
-
-instance Decode Double where
   decoder = Decoder Decoding.float8
 
 instance FromJSON Double
@@ -548,11 +497,7 @@ instance FromJSON Double
 -- | @numeric@
 instance PostgresType Scientific where
   typeName = "numeric"
-
-instance Encode Scientific where
   encode = param Encoding.numeric
-
-instance Decode Scientific where
   decoder = Decoder Decoding.numeric
 
 instance FromJSON Scientific
@@ -560,11 +505,7 @@ instance FromJSON Scientific
 -- | @uuid@
 instance PostgresType UUID where
   typeName = "uuid"
-
-instance Encode UUID where
   encode = param Encoding.uuid
-
-instance Decode UUID where
   decoder = Decoder Decoding.uuid
 
 instance FromJSON UUID where
@@ -573,11 +514,7 @@ instance FromJSON UUID where
 -- | @character@
 instance PostgresType Char where
   typeName = "character"
-
-instance Encode Char where
   encode = param Encoding.char_utf8
-
-instance Decode Char where
   decoder = Decoder Decoding.char
 
 instance FromJSON Char where
@@ -586,11 +523,7 @@ instance FromJSON Char where
 -- | @text@
 instance PostgresType Text where
   typeName = "text"
-
-instance Encode Text where
   encode = param Encoding.text_strict
-
-instance Decode Text where
   decoder = Decoder Decoding.text_strict
 
 instance FromJSON Text where
@@ -599,11 +532,7 @@ instance FromJSON Text where
 -- | @text@
 instance PostgresType Lazy.Text where
   typeName = "text"
-
-instance Encode Lazy.Text where
   encode = param Encoding.text_lazy
-
-instance Decode Lazy.Text where
   decoder = Decoder Decoding.text_lazy
 
 instance FromJSON Lazy.Text where
@@ -612,11 +541,7 @@ instance FromJSON Lazy.Text where
 -- | @bytea@
 instance PostgresType ByteString where
   typeName = "bytea"
-
-instance Encode ByteString where
   encode = param Encoding.bytea_strict
-
-instance Decode ByteString where
   decoder = Decoder Decoding.bytea_strict
 
 instance FromJSON ByteString where
@@ -625,11 +550,7 @@ instance FromJSON ByteString where
 -- | @bytea@
 instance PostgresType Lazy.ByteString where
   typeName = "bytea"
-
-instance Encode Lazy.ByteString where
   encode = param Encoding.bytea_lazy
-
-instance Decode Lazy.ByteString where
   decoder = Decoder Decoding.bytea_lazy
 
 instance FromJSON Lazy.ByteString where
@@ -638,11 +559,7 @@ instance FromJSON Lazy.ByteString where
 -- | @date@
 instance PostgresType Day where
   typeName = "date"
-
-instance Encode Day where
   encode = param Encoding.date
-
-instance Decode Day where
   decoder = Decoder Decoding.date
 
 instance FromJSON Day where
@@ -651,11 +568,7 @@ instance FromJSON Day where
 -- | @time@
 instance PostgresType TimeOfDay where
   typeName = "time"
-
-instance Encode TimeOfDay where
   encode = param Encoding.time_int
-
-instance Decode TimeOfDay where
   decoder = Decoder Decoding.time_int
 
 instance FromJSON TimeOfDay where
@@ -664,11 +577,7 @@ instance FromJSON TimeOfDay where
 -- | @timetz@
 instance PostgresType (TimeOfDay, TimeZone) where
   typeName = "timetz"
-
-instance Encode (TimeOfDay, TimeZone) where
   encode = param Encoding.timetz_int
-
-instance Decode (TimeOfDay, TimeZone) where
   decoder = Decoder Decoding.timetz_int
 
 instance FromJSON (TimeOfDay, TimeZone) where
@@ -677,11 +586,7 @@ instance FromJSON (TimeOfDay, TimeZone) where
 -- | @timestamp@
 instance PostgresType LocalTime where
   typeName = "timestamp"
-
-instance Encode LocalTime where
   encode = param Encoding.timestamp_int
-
-instance Decode LocalTime where
   decoder = Decoder Decoding.timestamp_int
 
 instance FromJSON LocalTime where
@@ -690,11 +595,7 @@ instance FromJSON LocalTime where
 -- | @timestamptz@
 instance PostgresType UTCTime where
   typeName = "timestamptz"
-
-instance Encode UTCTime where
   encode = param Encoding.timestamptz_int
-
-instance Decode UTCTime where
   decoder = Decoder Decoding.timestamptz_int
 
 instance FromJSON UTCTime where
@@ -703,11 +604,7 @@ instance FromJSON UTCTime where
 -- | @interval@
 instance PostgresType DiffTime where
   typeName = "interval"
-
-instance Encode DiffTime where
   encode = param Encoding.interval_int
-
-instance Decode DiffTime where
   decoder = Decoder Decoding.interval_int
 
 instance FromJSON DiffTime where
