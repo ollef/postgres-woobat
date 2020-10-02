@@ -41,7 +41,8 @@ library
       src
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Wtabs -funbox-strict-fields
   build-depends:
-      barbies
+      aeson
+    , barbies
     , base >=4.7 && <5
     , bytestring
     , bytestring-strict-builder
@@ -68,7 +69,8 @@ test-suite postgres-woobat-test
       test
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Wtabs -funbox-strict-fields -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      barbies
+      aeson
+    , barbies
     , base >=4.7 && <5
     , bytestring
     , bytestring-strict-builder

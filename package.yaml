@@ -24,6 +24,7 @@ extra-source-files:
 
 dependencies:
 - base >= 4.7 && < 5
+- aeson
 - barbies
 - bytestring
 - bytestring-strict-builder

@@ -18,6 +18,7 @@ module Database.Woobat.Expr where
 import qualified ByteString.StrictBuilder as Builder
 import Control.Monad
 import Control.Monad.State
+import qualified Data.Aeson as Aeson
 import qualified Data.Barbie as Barbie
 import qualified Data.Barbie.Constraints as Barbie
 import Data.ByteString (ByteString)
@@ -304,7 +305,7 @@ instance
 
 -- * JSON
 
-data JSONB a
+newtype JSONB a = JSONB Aeson.Value
 
 class DatabaseType a => FromJSON a where
   fromJSON :: Expr s (JSONB a) -> Expr s a
@@ -312,6 +313,14 @@ class DatabaseType a => FromJSON a where
 
 instance DatabaseType (JSONB a) where
   typeName = "jsonb"
+
+instance Encode (JSONB a) where
+  encode (JSONB value) =
+    Expr $ Raw.param (Builder.builderBytes $ Encoding.jsonb_ast value) <> "::" <> typeName @(JSONB a)
+
+instance Decode (JSONB a) where
+  decoder =
+    Decoder $ JSONB <$> Decoding.jsonb_ast
 
 instance ArrayElement (JSONB a)
 
