@@ -249,6 +249,17 @@ arrayLength (Expr e) = Expr $ "array_length(" <> e <> ", 1)"
 row :: HKD.TraversableB (HKD table) => HKD table (Expr s) -> Expr s table
 row table =
   Expr $ "ROW(" <> mconcat (intersperse ", " $ Barbie.bfoldMap (\(Expr e) -> [e]) table) <> ")"
+
+unJSONRow :: (Generic table, HKD.ConstraintsB (HKD table), HKD.TraversableB (HKD table), Barbie.AllB FromJSON (HKD table), HKD.Tuple (Const ()) table ()) => Expr s (JSONB table) -> HKD table (Expr s)
+unJSONRow (Expr json) =
+  flip evalState 1 $ Barbie.btraverseC @FromJSON go mempty
+  where
+    go :: forall s x. FromJSON x => Const () x -> State Int (Expr s x)
+    go (Const ()) = do
+      i <- get
+      put $! i + 1
+      return $ fromJSON $ Expr $ json <> "->'f" <> fromString (show i) <> "'"
+
 instance {-# OVERLAPPABLE #-} (HKD.FunctorB (HKD table)) => DatabaseType table where
   typeName = "record"
 
