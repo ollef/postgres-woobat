@@ -260,8 +260,8 @@ instance DatabaseType (JSONB a) where
 
 instance ArrayElement (JSONB a)
 
-toJSONB :: forall s a. DatabaseType a => Expr s a -> Expr s (JSONB a)
-toJSONB (Expr e) = Expr $ "TO_JSON(" <> e <> ")::" <> typeName @(JSONB a)
+toJSONB :: Expr s a -> Expr s (JSONB a)
+toJSONB (Expr e) = Expr $ "TO_JSONB(" <> e <> ")"
 
 class DatabaseType a => FromJSON a where
   fromJSON :: Expr s (JSONB a) -> Expr s a
@@ -358,7 +358,7 @@ instance (ArrayElement a, FromJSON a) => FromJSON [a] where
   fromJSON (Expr json) =
     Expr $
       -- TODO needs fresh names
-      "ARRAY(SELECT " <> coerce (fromJSON @a $ Expr "element.value") <> " FROM JSON_ARRAY_ELEMENTS(" <> json <> ") AS element)"
+      "ARRAY(SELECT " <> coerce (fromJSON @a $ Expr "element.value") <> " FROM JSONB_ARRAY_ELEMENTS(" <> json <> ") AS element)"
 
 -- | Rows
 instance {-# OVERLAPPABLE #-} (HKD.FunctorB (HKD table)) => DatabaseType table where
