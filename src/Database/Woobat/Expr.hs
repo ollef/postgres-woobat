@@ -432,6 +432,8 @@ instance Encode Bool where
 instance Decode Bool where
   decoder = Decoder Decoding.bool
 
+instance ArrayElement Bool
+
 instance FromJSON Bool
 
 -- | @integer@
@@ -443,6 +445,8 @@ instance Encode Int where
 
 instance Decode Int where
   decoder = Decoder Decoding.int
+
+instance ArrayElement Int
 
 instance FromJSON Int
 
@@ -456,6 +460,8 @@ instance Encode Int16 where
 instance Decode Int16 where
   decoder = Decoder Decoding.int
 
+instance ArrayElement Int16
+
 instance FromJSON Int16
 
 -- | @int4@
@@ -467,6 +473,8 @@ instance Encode Int32 where
 
 instance Decode Int32 where
   decoder = Decoder Decoding.int
+
+instance ArrayElement Int32
 
 instance FromJSON Int32
 
@@ -480,6 +488,8 @@ instance Encode Int64 where
 instance Decode Int64 where
   decoder = Decoder Decoding.int
 
+instance ArrayElement Int64
+
 instance FromJSON Int64
 
 -- | @int2@
@@ -491,6 +501,8 @@ instance Encode Word16 where
 
 instance Decode Word16 where
   decoder = Decoder Decoding.int
+
+instance ArrayElement Word16
 
 instance FromJSON Word16
 
@@ -504,6 +516,8 @@ instance Encode Word32 where
 instance Decode Word32 where
   decoder = Decoder Decoding.int
 
+instance ArrayElement Word32
+
 instance FromJSON Word32
 
 -- | @int8@
@@ -515,6 +529,8 @@ instance Encode Word64 where
 
 instance Decode Word64 where
   decoder = Decoder Decoding.int
+
+instance ArrayElement Word64
 
 instance FromJSON Word64
 
@@ -528,6 +544,8 @@ instance Encode Float where
 instance Decode Float where
   decoder = Decoder Decoding.float4
 
+instance ArrayElement Float
+
 instance FromJSON Float
 
 -- | @float8@
@@ -540,6 +558,7 @@ instance Encode Double where
 instance Decode Double where
   decoder = Decoder Decoding.float8
 
+instance ArrayElement Double
 instance FromJSON Double
 
 -- | @numeric@
@@ -552,6 +571,8 @@ instance Encode Scientific where
 instance Decode Scientific where
   decoder = Decoder Decoding.numeric
 
+instance ArrayElement Scientific
+
 instance FromJSON Scientific
 
 -- | @uuid@
@@ -563,6 +584,8 @@ instance Encode UUID where
 
 instance Decode UUID where
   decoder = Decoder Decoding.uuid
+
+instance ArrayElement UUID
 
 instance FromJSON UUID where
   fromJSON (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> typeName @UUID
@@ -577,6 +600,8 @@ instance Encode Char where
 instance Decode Char where
   decoder = Decoder Decoding.char
 
+instance ArrayElement Char
+
 instance FromJSON Char where
   fromJSON (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> typeName @Char
 
@@ -589,6 +614,8 @@ instance Encode Text where
 
 instance Decode Text where
   decoder = Decoder Decoding.text_strict
+
+instance ArrayElement Text
 
 instance FromJSON Text where
   fromJSON (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> typeName @Text
@@ -603,6 +630,8 @@ instance Encode Lazy.Text where
 instance Decode Lazy.Text where
   decoder = Decoder Decoding.text_lazy
 
+instance ArrayElement Lazy.Text
+
 instance FromJSON Lazy.Text where
   fromJSON (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> typeName @Lazy.Text
 
@@ -615,6 +644,8 @@ instance Encode ByteString where
 
 instance Decode ByteString where
   decoder = Decoder Decoding.bytea_strict
+
+instance ArrayElement ByteString
 
 instance FromJSON ByteString where
   fromJSON (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> typeName @ByteString
@@ -629,6 +660,8 @@ instance Encode Lazy.ByteString where
 instance Decode Lazy.ByteString where
   decoder = Decoder Decoding.bytea_lazy
 
+instance ArrayElement Lazy.ByteString
+
 instance FromJSON Lazy.ByteString where
   fromJSON (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> typeName @Lazy.ByteString
 
@@ -641,6 +674,8 @@ instance Encode Day where
 
 instance Decode Day where
   decoder = Decoder Decoding.date
+
+instance ArrayElement Day
 
 instance FromJSON Day where
   fromJSON (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> typeName @Day
@@ -655,6 +690,8 @@ instance Encode TimeOfDay where
 instance Decode TimeOfDay where
   decoder = Decoder Decoding.time_int
 
+instance ArrayElement TimeOfDay
+
 instance FromJSON TimeOfDay where
   fromJSON (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> typeName @TimeOfDay
 
@@ -667,6 +704,8 @@ instance Encode (TimeOfDay, TimeZone) where
 
 instance Decode (TimeOfDay, TimeZone) where
   decoder = Decoder Decoding.timetz_int
+
+instance ArrayElement (TimeOfDay, TimeZone)
 
 instance FromJSON (TimeOfDay, TimeZone) where
   fromJSON (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> typeName @(TimeOfDay, TimeZone)
@@ -681,6 +720,8 @@ instance Encode LocalTime where
 instance Decode LocalTime where
   decoder = Decoder Decoding.timestamp_int
 
+instance ArrayElement LocalTime
+
 instance FromJSON LocalTime where
   fromJSON (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> typeName @LocalTime
 
@@ -694,6 +735,8 @@ instance Encode UTCTime where
 instance Decode UTCTime where
   decoder = Decoder Decoding.timestamptz_int
 
+instance ArrayElement UTCTime
+
 instance FromJSON UTCTime where
   fromJSON (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> typeName @UTCTime
 
@@ -706,6 +749,8 @@ instance Encode DiffTime where
 
 instance Decode DiffTime where
   decoder = Decoder Decoding.interval_int
+
+instance ArrayElement DiffTime
 
 instance FromJSON DiffTime where
   fromJSON (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> typeName @DiffTime
