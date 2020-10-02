@@ -110,9 +110,8 @@ instance {-# OVERLAPPABLE #-} DatabaseEq s (Expr s a) where
   (==.) = unsafeBinaryOperator "="
   (/=.) = unsafeBinaryOperator "!="
 
-{- | Handles nulls the same way as Haskell's equality operators using
- @IS [NOT] DISTINCT FROM@.
--}
+-- | Handles nulls the same way as Haskell's equality operators using
+-- @IS [NOT] DISTINCT FROM@.
 instance {-# OVERLAPPING #-} DatabaseEq s (Expr s (Maybe a)) where
   (==.) = unsafeBinaryOperator "IS NOT DISTINCT FROM"
   (/=.) = unsafeBinaryOperator "IS DISTINCT FROM"
