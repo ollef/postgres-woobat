@@ -219,6 +219,20 @@ array exprs =
 instance Semigroup (Expr s [a]) where
   (<>) = unsafeBinaryOperator "||"
 
+-- | Array contains
+(@>) :: Expr s [a] -> Expr s [a] -> Expr s Bool
+(@>) = unsafeBinaryOperator "@>"
+
+-- | Array is contained by
+(<@) :: Expr s [a] -> Expr s [a] -> Expr s Bool
+(<@) = unsafeBinaryOperator "<@"
+
+-- | Arrays overlap (have elements in common). Postgres @&&@ operator.
+overlap :: Expr s [a] -> Expr s [a] -> Expr s Bool
+overlap = unsafeBinaryOperator "&&"
+
+arrayLength :: Expr s [a] -> Expr s Int
+arrayLength (Expr e) = Expr $ "array_length(" <> e <> ", 1)"
 -------------------------------------------------------------------------------
 
 -- * Rows
