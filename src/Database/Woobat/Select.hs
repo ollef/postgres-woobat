@@ -30,11 +30,10 @@ import Database.Woobat.Table (Table)
 import qualified Database.Woobat.Table as Table
 
 select :: forall s a. Barbie (Expr s) a => Select s a -> Raw.SQL
-select (Select s) =
+select s =
   evalState compiler $ usedNames selectState
   where
-    (results, selectState) =
-      runState s SelectState {usedNames = mempty, rawSelect = mempty}
+    (results, selectState) = run mempty s
     resultsBarbie :: ToBarbie (Expr s) a (Expr s)
     resultsBarbie = toBarbie results
     Compiler.Compiler compiler =
@@ -82,7 +81,7 @@ leftJoin ::
   (ToOuter s a -> Expr t Bool) ->
   Select u (ToLeft s a)
 leftJoin (Select sel) on = Select $ do
-  (rightSelect, innerResults) <- subquery sel
+  (innerResults, rightSelect) <- subquery sel
   let innerResultsBarbie :: ToBarbie (Expr (Inner s)) a (Expr (Inner s))
       innerResultsBarbie = toBarbie innerResults
   case rightSelect of
@@ -135,7 +134,7 @@ aggregate ::
   Select (Inner s) a ->
   Select t (FromAggregate s a)
 aggregate (Select sel) = Select $ do
-  (aggSelect, innerResults) <- subquery sel
+  (innerResults, aggSelect) <- subquery sel
   alias <- freshName "subquery"
   namedResults :: ToBarbie (AggregateExpr (Inner s)) a (Product (Const ByteString) (AggregateExpr (Inner s))) <-
     HKD.btraverse
