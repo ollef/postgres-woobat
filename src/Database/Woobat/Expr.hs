@@ -246,6 +246,28 @@ overlap = unsafeBinaryOperator "&&"
 
 arrayLength :: Expr s [a] -> Expr s Int
 arrayLength (Expr e) = Expr $ "array_length(" <> e <> ", 1)"
+
+instance ArrayElement a => DatabaseType [a] where
+  typeName = typeName @a <> "[]"
+
+instance (ArrayElement a, Encode a) => Encode [a] where
+  encode = array . map encode
+
+instance (ArrayElement a, Decode a) => Decode [a] where
+  decoder = Decoder $
+    Decoding.array $
+      Decoding.dimensionArray
+        replicateM
+        $ case decoder of
+          Decoder d -> Decoding.valueArray d
+          NullableDecoder d -> Decoding.nullableValueArray d
+
+instance (ArrayElement a, FromJSON a) => FromJSON [a] where
+  fromJSON (Expr json) =
+    Expr $
+      -- TODO needs fresh names
+      "ARRAY(SELECT " <> coerce (fromJSON @a $ Expr "element.value") <> " FROM JSONB_ARRAY_ELEMENTS(" <> json <> ") AS element)"
+
 -------------------------------------------------------------------------------
 
 -- * Rows
@@ -399,28 +421,6 @@ class DatabaseType a => ArrayElement a
 data Decoder a where
   Decoder :: Decoding.Value a -> Decoder a
   NullableDecoder :: Decoding.Value a -> Decoder (Maybe a)
-
--- | Arrays
-instance ArrayElement a => DatabaseType [a] where
-  typeName = typeName @a <> "[]"
-
-instance (ArrayElement a, Encode a) => Encode [a] where
-  encode = array . map encode
-
-instance (ArrayElement a, Decode a) => Decode [a] where
-  decoder = Decoder $
-    Decoding.array $
-      Decoding.dimensionArray
-        replicateM
-        $ case decoder of
-          Decoder d -> Decoding.valueArray d
-          NullableDecoder d -> Decoding.nullableValueArray d
-
-instance (ArrayElement a, FromJSON a) => FromJSON [a] where
-  fromJSON (Expr json) =
-    Expr $
-      -- TODO needs fresh names
-      "ARRAY(SELECT " <> coerce (fromJSON @a $ Expr "element.value") <> " FROM JSONB_ARRAY_ELEMENTS(" <> json <> ") AS element)"
 
 -- | @boolean@
 instance DatabaseType Bool where
