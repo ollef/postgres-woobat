@@ -63,6 +63,8 @@ compileFrom from =
         pure $ Raw.code name
       | otherwise ->
         pure $ Raw.code name <> " AS " <> Raw.code alias
+    Raw.Set expr alias ->
+      pure $ expr <> " AS " <> Raw.code alias
     Raw.Subquery exprAliases select alias ->
       "(" <> compileSelect (separateBy ", " $ (\(expr, columnAlias) -> expr <> " AS " <> Raw.code columnAlias) <$> exprAliases) select <> ") AS " <> pure (Raw.code alias)
     Raw.CrossJoin from_ froms ->

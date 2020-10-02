@@ -164,3 +164,9 @@ groupBy ::
 groupBy (Expr expr) = Select $ do
   addSelect mempty {Raw.groupBys = pure expr}
   pure $ AggregateExpr expr
+
+unnest :: (Same s t, Same t u) => Expr s [a] -> Select t (Expr u a)
+unnest (Expr arr) = Select $ do
+  alias <- freshNameWithSuggestion "unnested_array"
+  addSelect mempty {Raw.from = Raw.Set ("UNNEST(" <> arr <> ")") alias}
+  pure $ Expr $ Raw.code alias

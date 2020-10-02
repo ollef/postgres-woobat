@@ -77,6 +77,7 @@ data Order = Ascending | Descending
 data From
   = Unit
   | Table !ByteString !ByteString
+  | Set !SQL !ByteString
   | Subquery [(SQL, ByteString)] !Select !ByteString
   | CrossJoin From (Seq From)
   | LeftJoin !From !SQL !From
