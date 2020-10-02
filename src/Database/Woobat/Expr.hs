@@ -280,9 +280,9 @@ instance
 type family NonNestedMaybe a :: Constraint where
   NonNestedMaybe (Maybe a) =
     ( TypeError
-        ( 'Text "Attempt to use a nested Maybe as a database type:"
+        ( 'Text "Attempt to use a nested ‘Maybe’ as a database type:"
             ':<>: 'ShowType (Maybe (Maybe a))
-            ':<>: 'Text "Since Woobat maps Maybe types to nullable database types, nested Maybes are not supported."
+            ':<>: 'Text "Since Woobat maps ‘Maybe’ types to nullable database types and there is only one null, nesting is not supported."
         )
     , Impossible
     )
