@@ -34,9 +34,9 @@ freshName suggestion = do
 subquery :: State SelectState a -> State SelectState (a, Raw.Select)
 subquery q = do
   used <- gets usedNames
-  let (result, s) = run used $ Select q
-  modify $ \s -> s {usedNames = usedNames s}
-  pure (result, rawSelect s)
+  let (result, st) = run used $ Select q
+  modify $ \s -> s {usedNames = usedNames st}
+  pure (result, rawSelect st)
 
 addSelect :: Raw.Select -> State SelectState ()
 addSelect sel =
