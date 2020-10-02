@@ -559,6 +559,7 @@ instance Decode Double where
   decoder = Decoder Decoding.float8
 
 instance ArrayElement Double
+
 instance FromJSON Double
 
 -- | @numeric@
@@ -588,7 +589,7 @@ instance Decode UUID where
 instance ArrayElement UUID
 
 instance FromJSON UUID where
-  fromJSON (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> typeName @UUID
+  fromJSON = unsafeCastFromJSONString
 
 -- | @character@
 instance DatabaseType Char where
@@ -603,7 +604,7 @@ instance Decode Char where
 instance ArrayElement Char
 
 instance FromJSON Char where
-  fromJSON (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> typeName @Char
+  fromJSON = unsafeCastFromJSONString
 
 -- | @text@
 instance DatabaseType Text where
@@ -618,7 +619,7 @@ instance Decode Text where
 instance ArrayElement Text
 
 instance FromJSON Text where
-  fromJSON (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> typeName @Text
+  fromJSON = unsafeCastFromJSONString
 
 -- | @text@
 instance DatabaseType Lazy.Text where
@@ -633,7 +634,7 @@ instance Decode Lazy.Text where
 instance ArrayElement Lazy.Text
 
 instance FromJSON Lazy.Text where
-  fromJSON (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> typeName @Lazy.Text
+  fromJSON = unsafeCastFromJSONString
 
 -- | @bytea@
 instance DatabaseType ByteString where
@@ -648,7 +649,7 @@ instance Decode ByteString where
 instance ArrayElement ByteString
 
 instance FromJSON ByteString where
-  fromJSON (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> typeName @ByteString
+  fromJSON = unsafeCastFromJSONString
 
 -- | @bytea@
 instance DatabaseType Lazy.ByteString where
@@ -663,7 +664,7 @@ instance Decode Lazy.ByteString where
 instance ArrayElement Lazy.ByteString
 
 instance FromJSON Lazy.ByteString where
-  fromJSON (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> typeName @Lazy.ByteString
+  fromJSON = unsafeCastFromJSONString
 
 -- | @date@
 instance DatabaseType Day where
@@ -678,7 +679,7 @@ instance Decode Day where
 instance ArrayElement Day
 
 instance FromJSON Day where
-  fromJSON (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> typeName @Day
+  fromJSON = unsafeCastFromJSONString
 
 -- | @time@
 instance DatabaseType TimeOfDay where
@@ -693,7 +694,7 @@ instance Decode TimeOfDay where
 instance ArrayElement TimeOfDay
 
 instance FromJSON TimeOfDay where
-  fromJSON (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> typeName @TimeOfDay
+  fromJSON = unsafeCastFromJSONString
 
 -- | @timetz@
 instance DatabaseType (TimeOfDay, TimeZone) where
@@ -708,7 +709,7 @@ instance Decode (TimeOfDay, TimeZone) where
 instance ArrayElement (TimeOfDay, TimeZone)
 
 instance FromJSON (TimeOfDay, TimeZone) where
-  fromJSON (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> typeName @(TimeOfDay, TimeZone)
+  fromJSON = unsafeCastFromJSONString
 
 -- | @timestamp@
 instance DatabaseType LocalTime where
@@ -723,7 +724,7 @@ instance Decode LocalTime where
 instance ArrayElement LocalTime
 
 instance FromJSON LocalTime where
-  fromJSON (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> typeName @LocalTime
+  fromJSON = unsafeCastFromJSONString
 
 -- | @timestamptz@
 instance DatabaseType UTCTime where
@@ -738,7 +739,7 @@ instance Decode UTCTime where
 instance ArrayElement UTCTime
 
 instance FromJSON UTCTime where
-  fromJSON (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> typeName @UTCTime
+  fromJSON = unsafeCastFromJSONString
 
 -- | @interval@
 instance DatabaseType DiffTime where
@@ -753,7 +754,7 @@ instance Decode DiffTime where
 instance ArrayElement DiffTime
 
 instance FromJSON DiffTime where
-  fromJSON (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> typeName @DiffTime
+  fromJSON = unsafeCastFromJSONString
 
 -------------------------------------------------------------------------------
 
@@ -765,6 +766,9 @@ param encoding a =
 
 unsafeBinaryOperator :: Scope.Same s t => Raw.SQL -> Expr s a -> Expr t b -> Expr s c
 unsafeBinaryOperator name (Expr x) (Expr y) = Expr $ "(" <> x <> " " <> name <> " " <> y <> ")"
+
+unsafeCastFromJSONString :: forall s a. DatabaseType a => Expr s (JSONB a) -> Expr s a
+unsafeCastFromJSONString (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> typeName @a
 
 class Impossible where
   impossible :: a
