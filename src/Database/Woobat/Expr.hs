@@ -249,6 +249,50 @@ arrayLength (Expr e) = Expr $ "array_length(" <> e <> ", 1)"
 row :: HKD.TraversableB (HKD table) => HKD table (Expr s) -> Expr s table
 row table =
   Expr $ "ROW(" <> mconcat (intersperse ", " $ Barbie.bfoldMap (\(Expr e) -> [e]) table) <> ")"
+instance {-# OVERLAPPABLE #-} (HKD.FunctorB (HKD table)) => DatabaseType table where
+  typeName = "record"
+
+instance
+  {-# OVERLAPPABLE #-}
+  (HKD.Construct Identity table, HKD.ConstraintsB (HKD table), HKD.TraversableB (HKD table), Barbie.AllB Encode (HKD table), HKD.Tuple (Const ()) table ()) =>
+  Encode table
+  where
+  encode table =
+    row $ Barbie.bmapC @Encode (\(Identity field) -> encode field) $ HKD.deconstruct table
+
+instance
+  {-# OVERLAPPABLE #-}
+  (Generic table, HKD.Construct Decoding.Composite table, HKD.ConstraintsB (HKD table), Barbie.AllB Decode (HKD table), HKD.Tuple (Const ()) table ()) =>
+  Decode table
+  where
+  decoder =
+    Decoder $
+      Decoding.composite $
+        HKD.construct $
+          Barbie.bmapC
+            @Decode
+            ( \(Const ()) -> case decoder of
+                Decoder d -> Decoding.valueComposite d
+                NullableDecoder d -> Decoding.nullableValueComposite d
+            )
+            mempty
+
+instance {-# OVERLAPPABLE #-} (HKD.FunctorB (HKD table)) => ArrayElement table
+
+instance
+  {-# OVERLAPPABLE #-}
+  (Generic table, HKD.ConstraintsB (HKD table), HKD.TraversableB (HKD table), HKD.AllB FromJSON (HKD table), HKD.Tuple (Const ()) table ()) =>
+  FromJSON table
+  where
+  fromJSON (Expr json) =
+    row $ flip evalState 1 $ Barbie.btraverseC @FromJSON go mempty
+    where
+      go :: forall s x. FromJSON x => Const () x -> State Int (Expr s x)
+      go (Const ()) = do
+        i <- get
+        put $! i + 1
+        return $ fromJSON $ Expr $ json <> "->'f" <> fromString (show i) <> "'"
+
 -------------------------------------------------------------------------------
 
 -- * JSON
@@ -361,51 +405,6 @@ instance (ArrayElement a, FromJSON a) => FromJSON [a] where
     Expr $
       -- TODO needs fresh names
       "ARRAY(SELECT " <> coerce (fromJSON @a $ Expr "element.value") <> " FROM JSONB_ARRAY_ELEMENTS(" <> json <> ") AS element)"
-
--- | Rows
-instance {-# OVERLAPPABLE #-} (HKD.FunctorB (HKD table)) => DatabaseType table where
-  typeName = "record"
-
-instance
-  {-# OVERLAPPABLE #-}
-  (HKD.Construct Identity table, HKD.ConstraintsB (HKD table), HKD.TraversableB (HKD table), Barbie.AllB Encode (HKD table), HKD.Tuple (Const ()) table ()) =>
-  Encode table
-  where
-  encode table =
-    row $ Barbie.bmapC @Encode (\(Identity field) -> encode field) $ HKD.deconstruct table
-
-instance
-  {-# OVERLAPPABLE #-}
-  (Generic table, HKD.Construct Decoding.Composite table, HKD.ConstraintsB (HKD table), Barbie.AllB Decode (HKD table), HKD.Tuple (Const ()) table ()) =>
-  Decode table
-  where
-  decoder =
-    Decoder $
-      Decoding.composite $
-        HKD.construct $
-          Barbie.bmapC
-            @Decode
-            ( \(Const ()) -> case decoder of
-                Decoder d -> Decoding.valueComposite d
-                NullableDecoder d -> Decoding.nullableValueComposite d
-            )
-            mempty
-
-instance {-# OVERLAPPABLE #-} (HKD.FunctorB (HKD table)) => ArrayElement table
-
-instance
-  {-# OVERLAPPABLE #-}
-  (Generic table, HKD.ConstraintsB (HKD table), HKD.TraversableB (HKD table), HKD.AllB FromJSON (HKD table), HKD.Tuple (Const ()) table ()) =>
-  FromJSON table
-  where
-  fromJSON (Expr json) =
-    row $ flip evalState 1 $ Barbie.btraverseC @FromJSON go mempty
-    where
-      go :: forall s x. FromJSON x => Const () x -> State Int (Expr s x)
-      go (Const ()) = do
-        i <- get
-        put $! i + 1
-        return $ fromJSON $ Expr $ json <> "->'f" <> fromString (show i) <> "'"
 
 -- | @boolean@
 instance DatabaseType Bool where
