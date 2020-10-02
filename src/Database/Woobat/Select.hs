@@ -30,13 +30,12 @@ import Database.Woobat.Table (Table)
 import qualified Database.Woobat.Table as Table
 
 select :: forall s a. Barbie (Expr s) a => Select s a -> Raw.SQL
-select s =
-  Compiler.run (usedNames selectState) compiler
-  where
-    (results, selectState) = run mempty s
-    resultsBarbie :: ToBarbie (Expr s) a (Expr s)
-    resultsBarbie = toBarbie results
-    compiler = Compiler.compile resultsBarbie $ rawSelect selectState
+select s = do
+  let (results, usedNames', rawSelect') = run mempty s
+      resultsBarbie :: ToBarbie (Expr s) a (Expr s)
+      resultsBarbie = toBarbie results
+      compiler = Compiler.compile (Barbie.bfoldMap (\(Expr e) -> [e]) resultsBarbie) rawSelect'
+  fst $ Compiler.run usedNames' compiler
 
 from ::
   forall table s.

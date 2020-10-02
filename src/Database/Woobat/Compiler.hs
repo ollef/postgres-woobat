@@ -6,22 +6,19 @@
 module Database.Woobat.Compiler where
 
 import Control.Monad.State
-import Data.Barbie (bfoldMap)
 import Data.ByteString (ByteString)
 import Data.Foldable
-import qualified Data.Generic.HKD as HKD
 import Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as HashMap
 import Data.List
 import Data.String
-import Database.Woobat.Expr
 import qualified Database.Woobat.Raw as Raw
 
 newtype Compiler a = Compiler (State (HashMap ByteString Int) a)
   deriving (Functor, Applicative, Monad, MonadState (HashMap ByteString Int))
 
-run :: HashMap ByteString Int -> Compiler a -> a
-run usedNames (Compiler s) = evalState s usedNames
+run :: HashMap ByteString Int -> Compiler a -> (a, HashMap ByteString Int)
+run usedNames (Compiler s) = runState s usedNames
 
 instance Monoid a => Monoid (Compiler a) where
   mempty = pure mempty
@@ -42,9 +39,9 @@ freshName suggestion = Compiler $ do
       then suggestion
       else suggestion <> "_" <> fromString (show usedCount)
 
-compile :: HKD.TraversableB a => a (Expr s) -> Raw.Select -> Compiler Raw.SQL
+compile :: [Raw.SQL] -> Raw.Select -> Compiler Raw.SQL
 compile result select =
-  compileSelect (separateBy ", " $ bfoldMap (\(Expr e) -> [e]) result) select
+  compileSelect (separateBy ", " result) select
 
 compileSelect :: Raw.SQL -> Raw.Select -> Compiler Raw.SQL
 compileSelect exprs Raw.Select {from = Raw.Unit, wheres = Raw.Empty, groupBys = Raw.Empty, orderBys = Raw.Empty} =
