@@ -215,7 +215,7 @@ min_ (Expr e) = AggregateExpr $ "MIN(" <> e <> ")"
 sum_ :: (Num a, Num b) => Expr s a -> AggregateExpr s (Maybe b)
 sum_ (Expr e) = AggregateExpr $ "SUM(" <> e <> ")"
 
-arrayAggregate :: ArrayElement a => Expr s a -> AggregateExpr s [a]
+arrayAggregate :: NonNestedArray a => Expr s a -> AggregateExpr s [a]
 arrayAggregate (Expr e) = AggregateExpr $ "ARRAY_AGG(" <> e <> ")"
 
 jsonAggregate :: Expr s (JSONB a) -> AggregateExpr s (JSONB [a])
@@ -224,7 +224,7 @@ jsonAggregate (Expr e) = AggregateExpr $ "JSONB_AGG(" <> e <> ")"
 
 -- * Arrays
 
-array :: forall s a. ArrayElement a => [Expr s a] -> Expr s [a]
+array :: forall s a. (NonNestedArray a, DatabaseType a) => [Expr s a] -> Expr s [a]
 array exprs =
   Expr $
     "ARRAY[" <> mconcat (intersperse ", " $ coerce exprs) <> "]::" <> typeName @[a]
@@ -247,13 +247,13 @@ overlap = unsafeBinaryOperator "&&"
 arrayLength :: Expr s [a] -> Expr s Int
 arrayLength (Expr e) = Expr $ "array_length(" <> e <> ", 1)"
 
-instance ArrayElement a => DatabaseType [a] where
+instance (NonNestedArray a, DatabaseType a) => DatabaseType [a] where
   typeName = typeName @a <> "[]"
 
-instance (ArrayElement a, Encode a) => Encode [a] where
+instance (NonNestedArray a, Encode a) => Encode [a] where
   encode = array . map encode
 
-instance (ArrayElement a, Decode a) => Decode [a] where
+instance (NonNestedArray a, Decode a) => Decode [a] where
   decoder = Decoder $
     Decoding.array $
       Decoding.dimensionArray
@@ -262,11 +262,22 @@ instance (ArrayElement a, Decode a) => Decode [a] where
           Decoder d -> Decoding.valueArray d
           NullableDecoder d -> Decoding.nullableValueArray d
 
-instance (ArrayElement a, FromJSON a) => FromJSON [a] where
+instance (NonNestedArray a, FromJSON a) => FromJSON [a] where
   fromJSON (Expr json) =
     Expr $
       -- TODO needs fresh names
       "ARRAY(SELECT " <> coerce (fromJSON @a $ Expr "element.value") <> " FROM JSONB_ARRAY_ELEMENTS(" <> json <> ") AS element)"
+
+type family NonNestedArray a :: Constraint where
+  NonNestedArray [a] =
+    ( TypeError
+        ( 'Text "Attempt to use a nested list as a database type:"
+            ':<>: 'ShowType [[a]]
+            ':<>: 'Text "Since Woobat maps lists to Postgres arrays and multidimensional Postgres arrays must have matching dimensions, unlike Haskell, nesting is not supported."
+        )
+    , Impossible
+    )
+  NonNestedArray _ = ()
 
 -------------------------------------------------------------------------------
 
@@ -314,8 +325,6 @@ instance
             )
             mempty
 
-instance {-# OVERLAPPABLE #-} (HKD.FunctorB (HKD table)) => ArrayElement table
-
 instance
   {-# OVERLAPPABLE #-}
   (Generic table, HKD.ConstraintsB (HKD table), HKD.TraversableB (HKD table), HKD.AllB FromJSON (HKD table), HKD.Tuple (Const ()) table ()) =>
@@ -343,8 +352,6 @@ instance Encode (JSONB a) where
 instance Decode (JSONB a) where
   decoder =
     Decoder $ JSONB <$> Decoding.jsonb_ast
-
-instance ArrayElement (JSONB a)
 
 instance FromJSON (JSONB a) where
   fromJSON = coerce
@@ -415,9 +422,6 @@ class DatabaseType a => Encode a where
 class DatabaseType a => Decode a where
   decoder :: Decoder a
 
--- | Types that can be used as array elements
-class DatabaseType a => ArrayElement a
-
 data Decoder a where
   Decoder :: Decoding.Value a -> Decoder a
   NullableDecoder :: Decoding.Value a -> Decoder (Maybe a)
@@ -432,8 +436,6 @@ instance Encode Bool where
 instance Decode Bool where
   decoder = Decoder Decoding.bool
 
-instance ArrayElement Bool
-
 instance FromJSON Bool
 
 -- | @integer@
@@ -445,8 +447,6 @@ instance Encode Int where
 
 instance Decode Int where
   decoder = Decoder Decoding.int
-
-instance ArrayElement Int
 
 instance FromJSON Int
 
@@ -460,8 +460,6 @@ instance Encode Int16 where
 instance Decode Int16 where
   decoder = Decoder Decoding.int
 
-instance ArrayElement Int16
-
 instance FromJSON Int16
 
 -- | @int4@
@@ -473,8 +471,6 @@ instance Encode Int32 where
 
 instance Decode Int32 where
   decoder = Decoder Decoding.int
-
-instance ArrayElement Int32
 
 instance FromJSON Int32
 
@@ -488,8 +484,6 @@ instance Encode Int64 where
 instance Decode Int64 where
   decoder = Decoder Decoding.int
 
-instance ArrayElement Int64
-
 instance FromJSON Int64
 
 -- | @int2@
@@ -501,8 +495,6 @@ instance Encode Word16 where
 
 instance Decode Word16 where
   decoder = Decoder Decoding.int
-
-instance ArrayElement Word16
 
 instance FromJSON Word16
 
@@ -516,8 +508,6 @@ instance Encode Word32 where
 instance Decode Word32 where
   decoder = Decoder Decoding.int
 
-instance ArrayElement Word32
-
 instance FromJSON Word32
 
 -- | @int8@
@@ -529,8 +519,6 @@ instance Encode Word64 where
 
 instance Decode Word64 where
   decoder = Decoder Decoding.int
-
-instance ArrayElement Word64
 
 instance FromJSON Word64
 
@@ -544,8 +532,6 @@ instance Encode Float where
 instance Decode Float where
   decoder = Decoder Decoding.float4
 
-instance ArrayElement Float
-
 instance FromJSON Float
 
 -- | @float8@
@@ -557,8 +543,6 @@ instance Encode Double where
 
 instance Decode Double where
   decoder = Decoder Decoding.float8
-
-instance ArrayElement Double
 
 instance FromJSON Double
 
@@ -572,8 +556,6 @@ instance Encode Scientific where
 instance Decode Scientific where
   decoder = Decoder Decoding.numeric
 
-instance ArrayElement Scientific
-
 instance FromJSON Scientific
 
 -- | @uuid@
@@ -585,8 +567,6 @@ instance Encode UUID where
 
 instance Decode UUID where
   decoder = Decoder Decoding.uuid
-
-instance ArrayElement UUID
 
 instance FromJSON UUID where
   fromJSON = unsafeCastFromJSONString
@@ -601,8 +581,6 @@ instance Encode Char where
 instance Decode Char where
   decoder = Decoder Decoding.char
 
-instance ArrayElement Char
-
 instance FromJSON Char where
   fromJSON = unsafeCastFromJSONString
 
@@ -615,8 +593,6 @@ instance Encode Text where
 
 instance Decode Text where
   decoder = Decoder Decoding.text_strict
-
-instance ArrayElement Text
 
 instance FromJSON Text where
   fromJSON = unsafeCastFromJSONString
@@ -631,8 +607,6 @@ instance Encode Lazy.Text where
 instance Decode Lazy.Text where
   decoder = Decoder Decoding.text_lazy
 
-instance ArrayElement Lazy.Text
-
 instance FromJSON Lazy.Text where
   fromJSON = unsafeCastFromJSONString
 
@@ -645,8 +619,6 @@ instance Encode ByteString where
 
 instance Decode ByteString where
   decoder = Decoder Decoding.bytea_strict
-
-instance ArrayElement ByteString
 
 instance FromJSON ByteString where
   fromJSON = unsafeCastFromJSONString
@@ -661,8 +633,6 @@ instance Encode Lazy.ByteString where
 instance Decode Lazy.ByteString where
   decoder = Decoder Decoding.bytea_lazy
 
-instance ArrayElement Lazy.ByteString
-
 instance FromJSON Lazy.ByteString where
   fromJSON = unsafeCastFromJSONString
 
@@ -675,8 +645,6 @@ instance Encode Day where
 
 instance Decode Day where
   decoder = Decoder Decoding.date
-
-instance ArrayElement Day
 
 instance FromJSON Day where
   fromJSON = unsafeCastFromJSONString
@@ -691,8 +659,6 @@ instance Encode TimeOfDay where
 instance Decode TimeOfDay where
   decoder = Decoder Decoding.time_int
 
-instance ArrayElement TimeOfDay
-
 instance FromJSON TimeOfDay where
   fromJSON = unsafeCastFromJSONString
 
@@ -705,8 +671,6 @@ instance Encode (TimeOfDay, TimeZone) where
 
 instance Decode (TimeOfDay, TimeZone) where
   decoder = Decoder Decoding.timetz_int
-
-instance ArrayElement (TimeOfDay, TimeZone)
 
 instance FromJSON (TimeOfDay, TimeZone) where
   fromJSON = unsafeCastFromJSONString
@@ -721,8 +685,6 @@ instance Encode LocalTime where
 instance Decode LocalTime where
   decoder = Decoder Decoding.timestamp_int
 
-instance ArrayElement LocalTime
-
 instance FromJSON LocalTime where
   fromJSON = unsafeCastFromJSONString
 
@@ -736,8 +698,6 @@ instance Encode UTCTime where
 instance Decode UTCTime where
   decoder = Decoder Decoding.timestamptz_int
 
-instance ArrayElement UTCTime
-
 instance FromJSON UTCTime where
   fromJSON = unsafeCastFromJSONString
 
@@ -750,8 +710,6 @@ instance Encode DiffTime where
 
 instance Decode DiffTime where
   decoder = Decoder Decoding.interval_int
-
-instance ArrayElement DiffTime
 
 instance FromJSON DiffTime where
   fromJSON = unsafeCastFromJSONString
