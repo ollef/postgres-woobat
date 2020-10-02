@@ -359,6 +359,7 @@ toJSONB (Expr e) = Expr $ "TO_JSONB(" <> e <> ")"
 -------------------------------------------------------------------------------
 
 -- * Nullable types
+
 nothing :: forall s a. (NonNestedMaybe a, PostgresType a) => Expr s (Maybe a)
 nothing = Expr $ "null::" <> typeName @a
 
