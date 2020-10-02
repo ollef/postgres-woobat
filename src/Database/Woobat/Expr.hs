@@ -216,6 +216,9 @@ sum_ (Expr e) = AggregateExpr $ "SUM(" <> e <> ")"
 
 arrayAggregate :: ArrayElement a => Expr s a -> AggregateExpr s [a]
 arrayAggregate (Expr e) = AggregateExpr $ "ARRAY_AGG(" <> e <> ")"
+
+jsonAggregate :: Expr s (JSONB a) -> AggregateExpr s (JSONB [a])
+jsonAggregate (Expr e) = AggregateExpr $ "JSONB_AGG(" <> e <> ")"
 -------------------------------------------------------------------------------
 
 -- * Arrays
