@@ -53,7 +53,7 @@ descriptionQuery :: Select s (Expr s Text)
 descriptionQuery = do
   p <- from profile
   where_ $ p ^. #name ==. "Olle"
-  pure $ p ^. #name
+  pure $ p ^. #description
 
 countProfiles :: Select s (Expr s Int, Expr s (Maybe Int), Expr s Text, Expr s Bool)
 countProfiles =
