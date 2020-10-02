@@ -204,6 +204,9 @@ min_ (Expr e) = AggregateExpr $ "MIN(" <> e <> ")"
 
 sum_ :: (Num a, Num b) => Expr s a -> AggregateExpr s (Maybe b)
 sum_ (Expr e) = AggregateExpr $ "SUM(" <> e <> ")"
+
+arrayAggregate :: DatabaseType a => Expr s a -> AggregateExpr s [a]
+arrayAggregate e = AggregateExpr $ "ARRAY_AGG(" <> arrayElement e <> ")"
 -------------------------------------------------------------------------------
 
 -- * Arrays
