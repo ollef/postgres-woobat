@@ -1,17 +1,18 @@
-{-# language DataKinds #-}
-{-# language DeriveGeneric #-}
-{-# language DuplicateRecordFields #-}
-{-# language FlexibleContexts #-}
-{-# language FlexibleInstances #-}
-{-# language MultiParamTypeClasses #-}
-{-# language OverloadedLabels #-}
-{-# language OverloadedStrings #-}
-{-# language ScopedTypeVariables #-}
-{-# language TypeApplications #-}
-{-# language TypeFamilies #-}
-{-# language TypeSynonymInstances #-}
-{-# language UndecidableInstances #-}
-{-# options_ghc -fno-warn-orphans -Wno-simplifiable-class-constraints #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC -fno-warn-orphans -Wno-simplifiable-class-constraints #-}
+
 module Scratch where
 
 import Control.Lens hiding (from)
@@ -22,7 +23,7 @@ import Data.Generics.Product.Fields (HasField')
 import Data.Text (Text)
 import Database.Woobat
 import GHC.Generics hiding (from)
-import GHC.OverloadedLabels (IsLabel(fromLabel))
+import GHC.OverloadedLabels (IsLabel (fromLabel))
 
 instance
   {-# OVERLAPPING #-}
@@ -30,7 +31,8 @@ instance
   , HasField' field (HKD structure (NullableExpr s)) (NullableExpr s a)
   , na ~ Nullable a
   ) =>
-  IsLabel field ((Expr s na -> f (Expr s na)) -> HKD structure (NullableExpr s) -> f (HKD structure (NullableExpr s))) where
+  IsLabel field ((Expr s na -> f (Expr s na)) -> HKD structure (NullableExpr s) -> f (HKD structure (NullableExpr s)))
+  where
   fromLabel = HKD.field @field . lens (\(NullableExpr e) -> e) const
 
 data Profile = Profile
@@ -39,12 +41,13 @@ data Profile = Profile
   , age :: !Int
   , optional :: !(Maybe Text)
   , boolean :: !Bool
-  } deriving Generic
+  }
+  deriving (Generic)
 
 profile :: Table Profile
 profile = table "profile"
 
-ppp = Profile { name = "Olle", age = 33, description = "", optional = Nothing, boolean = False } ^. #name
+ppp = Profile {name = "Olle", age = 33, description = "", optional = Nothing, boolean = False} ^. #name
 
 descriptionQuery :: Select s (Expr s Text)
 descriptionQuery = do
@@ -70,13 +73,12 @@ lol = do
   p' <- leftJoin (from profile) $ \p' -> p' ^. #name ==. p ^. #name
   n <- view #name <$> from profile
   nom <- leftJoin (view #name <$> from profile) $ \n -> n ==. p ^. #name
-  let
-    name1 :: Expr s Text
-    name1 = p ^. #name
-    name2 :: Expr s (Maybe Text)
-    name2 = p' ^. #name
-    opt :: Expr s (Maybe Text)
-    opt = p' ^. #optional
+  let name1 :: Expr s Text
+      name1 = p ^. #name
+      name2 :: Expr s (Maybe Text)
+      name2 = p' ^. #name
+      opt :: Expr s (Maybe Text)
+      opt = p' ^. #optional
   pure (name1, name2)
 
 profiles :: Select s (HKD Profile (Expr s))

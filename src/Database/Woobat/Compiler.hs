@@ -1,7 +1,8 @@
-{-# language DuplicateRecordFields #-}
-{-# language GeneralizedNewtypeDeriving #-}
-{-# language NamedFieldPuns #-}
-{-# language OverloadedStrings #-}
+{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE OverloadedStrings #-}
+
 module Database.Woobat.Compiler where
 
 import Control.Monad.State
@@ -31,28 +32,26 @@ instance IsString a => IsString (Compiler a) where
 freshNameWithSuggestion :: ByteString -> Compiler ByteString
 freshNameWithSuggestion suggestion = Compiler $ do
   used <- get
-  let
-    usedCount = HashMap.lookupDefault 0 suggestion used
+  let usedCount = HashMap.lookupDefault 0 suggestion used
   put $ HashMap.insert suggestion (usedCount + 1) used
   pure $
-    if usedCount == 0 then
-      suggestion
-    else
-      suggestion <> "_" <> fromString (show usedCount)
+    if usedCount == 0
+      then suggestion
+      else suggestion <> "_" <> fromString (show usedCount)
 
 compile :: HKD.TraversableB a => a (Expr s) -> Raw.Select -> Compiler Raw.SQL
 compile result select =
   compileSelect (separateBy ", " $ bfoldMap (\(Expr e) -> [e]) result) select
 
 compileSelect :: Raw.SQL -> Raw.Select -> Compiler Raw.SQL
-compileSelect exprs Raw.Select { from = Raw.Unit, wheres = Raw.Empty, groupBys = Raw.Empty, orderBys = Raw.Empty } =
+compileSelect exprs Raw.Select {from = Raw.Unit, wheres = Raw.Empty, groupBys = Raw.Empty, orderBys = Raw.Empty} =
   "SELECT " <> pure exprs
-compileSelect exprs Raw.Select { from, wheres, groupBys, orderBys } =
-  "SELECT " <> pure exprs <> " FROM " <>
-  compileFrom from <>
-  pure (compileWheres wheres) <>
-  pure (compileGroupBys groupBys) <>
-  pure (compileOrderBys orderBys)
+compileSelect exprs Raw.Select {from, wheres, groupBys, orderBys} =
+  "SELECT " <> pure exprs <> " FROM "
+    <> compileFrom from
+    <> pure (compileWheres wheres)
+    <> pure (compileGroupBys groupBys)
+    <> pure (compileOrderBys orderBys)
 
 compileFrom :: Raw.From -> Compiler Raw.SQL
 compileFrom from =
@@ -82,8 +81,8 @@ compileGroupBys groupBys = " GROUP BY " <> separateBy ", " groupBys
 compileOrderBys :: Raw.Tsil (Raw.SQL, Raw.Order) -> Raw.SQL
 compileOrderBys Raw.Empty = mempty
 compileOrderBys orderBys =
-  " ORDER BY " <>
-  separateBy ", " ((\(expr, order) -> expr <> " " <> compileOrder order) <$> orderBys)
+  " ORDER BY "
+    <> separateBy ", " ((\(expr, order) -> expr <> " " <> compileOrder order) <$> orderBys)
 
 compileOrder :: Raw.Order -> Raw.SQL
 compileOrder Raw.Ascending = "ASC"

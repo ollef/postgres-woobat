@@ -1,17 +1,18 @@
-{-# language AllowAmbiguousTypes #-}
-{-# language FlexibleContexts #-}
-{-# language FlexibleInstances #-}
-{-# language MultiParamTypeClasses #-}
-{-# language ScopedTypeVariables #-}
-{-# language TypeApplications #-}
-{-# language TypeFamilies #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeFamilies #-}
+
 module Database.Woobat.Barbie where
 
 import qualified Data.Barbie as Barbie
 import Data.Coerce
 import Data.Functor.Product
-import qualified Data.Generic.HKD as HKD
 import Data.Generic.HKD (HKD)
+import qualified Data.Generic.HKD as HKD
 import Database.Woobat.Expr
 import Database.Woobat.Scope
 
@@ -118,30 +119,33 @@ instance (Barbie f a, Barbie f b, Barbie f c, Barbie f d, Barbie f e, Barbie f a
 
 type ToOuter s a = FromBarbie (Expr (Inner s)) a (Expr s)
 
-toOuter
-  :: forall s a. (Barbie (Expr (Inner s)) a)
-  => ToBarbie (Expr (Inner s)) a (Expr (Inner s))
-  -> ToOuter s a
+toOuter ::
+  forall s a.
+  (Barbie (Expr (Inner s)) a) =>
+  ToBarbie (Expr (Inner s)) a (Expr (Inner s)) ->
+  ToOuter s a
 toOuter =
   fromBarbie @(Expr (Inner s)) @a
-  . HKD.bmap (coerce :: forall x. Expr (Inner s) x -> Expr s x)
+    . HKD.bmap (coerce :: forall x. Expr (Inner s) x -> Expr s x)
 
 type ToLeft s a = FromBarbie (Expr (Inner s)) a (NullableExpr s)
 
-toLeft
-  :: forall s a. (Barbie (Expr (Inner s)) a)
-  => ToBarbie (Expr (Inner s)) a (Expr (Inner s))
-  -> ToLeft s a
+toLeft ::
+  forall s a.
+  (Barbie (Expr (Inner s)) a) =>
+  ToBarbie (Expr (Inner s)) a (Expr (Inner s)) ->
+  ToLeft s a
 toLeft =
   fromBarbie @(Expr (Inner s)) @a
-  . HKD.bmap (coerce :: forall x. Expr (Inner s) x -> NullableExpr s x)
+    . HKD.bmap (coerce :: forall x. Expr (Inner s) x -> NullableExpr s x)
 
 type FromAggregate s a = FromBarbie (AggregateExpr (Inner s)) a (Expr s)
 
-fromAggregate
-  :: forall s a. (Barbie (AggregateExpr (Inner s)) a)
-  => ToBarbie (AggregateExpr (Inner s)) a (Expr (Inner s))
-  -> FromAggregate s a
+fromAggregate ::
+  forall s a.
+  (Barbie (AggregateExpr (Inner s)) a) =>
+  ToBarbie (AggregateExpr (Inner s)) a (Expr (Inner s)) ->
+  FromAggregate s a
 fromAggregate =
   fromBarbie @(AggregateExpr (Inner s)) @a
-  . HKD.bmap (coerce :: forall x. Expr (Inner s) x -> Expr s x)
+    . HKD.bmap (coerce :: forall x. Expr (Inner s) x -> Expr s x)

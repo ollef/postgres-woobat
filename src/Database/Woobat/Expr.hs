@@ -1,16 +1,17 @@
-{-# language AllowAmbiguousTypes #-}
-{-# language DataKinds #-}
-{-# language FlexibleContexts #-}
-{-# language FlexibleInstances #-}
-{-# language FunctionalDependencies #-}
-{-# language GADTs #-}
-{-# language OverloadedStrings #-}
-{-# language ScopedTypeVariables #-}
-{-# language TypeApplications #-}
-{-# language TypeFamilies #-}
-{-# language TypeOperators #-}
-{-# language UndecidableInstances #-}
-{-# options_ghc -Wno-redundant-constraints #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+
 module Database.Woobat.Expr where
 
 import qualified ByteString.StrictBuilder as Builder
@@ -32,18 +33,19 @@ import Data.Scientific
 import Data.String (IsString, fromString)
 import Data.Text (Text)
 import qualified Data.Text.Lazy as Lazy
-import Data.Time (Day, TimeOfDay, LocalTime, UTCTime, DiffTime, TimeZone)
+import Data.Time (Day, DiffTime, LocalTime, TimeOfDay, TimeZone, UTCTime)
 import Data.UUID.Types (UUID)
 import Data.Word
 import qualified Database.Woobat.Raw as Raw
 import qualified Database.Woobat.Scope as Scope
 import GHC.Generics
-import GHC.TypeLits (TypeError, ErrorMessage(..))
+import GHC.TypeLits (ErrorMessage (..), TypeError)
 import qualified PostgreSQL.Binary.Decoding as Decoding
 import PostgreSQL.Binary.Encoding (Encoding)
 import qualified PostgreSQL.Binary.Encoding as Encoding
 
 -------------------------------------------------------------------------------
+
 -- * Types
 
 newtype Expr s a = Expr Raw.SQL
@@ -57,6 +59,7 @@ type family Nullable a where
   Nullable a = Maybe a
 
 -------------------------------------------------------------------------------
+
 -- * Strings
 
 instance (IsString a, DatabaseType a) => IsString (Expr s a) where
@@ -69,6 +72,7 @@ instance (DatabaseType a, Semigroup (Expr s a), Monoid a) => Monoid (Expr s a) w
   mempty = value mempty
 
 -------------------------------------------------------------------------------
+
 -- * Numerics
 
 instance (Num a, DatabaseType a) => Num (Expr s a) where
@@ -91,6 +95,7 @@ instance Fractional (Expr s Double) where
   (/) = unsafeBinaryOperator "/"
 
 -------------------------------------------------------------------------------
+
 -- * Equality
 
 class DatabaseEq s a | a -> s where
@@ -102,35 +107,42 @@ instance {-# OVERLAPPABLE #-} DatabaseEq s (Expr s a) where
   (==.) = unsafeBinaryOperator "="
   (/=.) = unsafeBinaryOperator "!="
 
--- | Handles nulls the same way as Haskell's equality operators using
--- @IS [NOT] DISTINCT FROM@.
+{- | Handles nulls the same way as Haskell's equality operators using
+ @IS [NOT] DISTINCT FROM@.
+-}
 instance {-# OVERLAPPING #-} DatabaseEq s (Expr s (Maybe a)) where
   (==.) = unsafeBinaryOperator "IS NOT DISTINCT FROM"
   (/=.) = unsafeBinaryOperator "IS DISTINCT FROM"
 
 -- | Pointwise equality
 instance
-  (HKD.ConstraintsB (HKD table), HKD.TraversableB (HKD table), Barbie.ProductB (HKD table), Barbie.AllBF (DatabaseEq s) (Expr s) (HKD table))
-  => DatabaseEq s (HKD table (Expr s)) where
+  ( HKD.ConstraintsB (HKD table)
+  , HKD.TraversableB (HKD table)
+  , Barbie.ProductB (HKD table)
+  , Barbie.AllBF (DatabaseEq s) (Expr s) (HKD table)
+  ) =>
+  DatabaseEq s (HKD table (Expr s))
+  where
   table1 ==. table2 =
     foldr_ (&&.) true $
-    Barbie.bfoldMap (\(Const e) -> [e]) $
-    Barbie.bmapC @(Barbie.ClassF (DatabaseEq s) (Expr s)) (\(Pair x y) -> Const $ x ==. y) $
-    Barbie.bzip table1 table2
+      Barbie.bfoldMap (\(Const e) -> [e]) $
+        Barbie.bmapC @(Barbie.ClassF (DatabaseEq s) (Expr s)) (\(Pair x y) -> Const $ x ==. y) $
+          Barbie.bzip table1 table2
     where
       foldr_ _ b [] = b
       foldr_ f _ as = foldr1 f as
 
   table1 /=. table2 =
     foldr_ (||.) false $
-    Barbie.bfoldMap (\(Const e) -> [e]) $
-    Barbie.bmapC @(Barbie.ClassF (DatabaseEq s) (Expr s)) (\(Pair x y) -> Const $ x /=. y) $
-    Barbie.bzip table1 table2
+      Barbie.bfoldMap (\(Const e) -> [e]) $
+        Barbie.bmapC @(Barbie.ClassF (DatabaseEq s) (Expr s)) (\(Pair x y) -> Const $ x /=. y) $
+          Barbie.bzip table1 table2
     where
       foldr_ _ b [] = b
       foldr_ f _ as = foldr1 f as
 
 -------------------------------------------------------------------------------
+
 -- * Booleans
 
 true :: Expr s Bool
@@ -148,6 +160,7 @@ infixr 3 &&.
 infixr 2 ||.
 
 -------------------------------------------------------------------------------
+
 -- * Comparison operators
 
 (<.) :: Scope.Same s t => Expr s a -> Expr t a -> Expr s Bool
@@ -165,6 +178,7 @@ infixr 2 ||.
 infix 4 <., <=., >., >=.
 
 -------------------------------------------------------------------------------
+
 -- * Aggregates
 
 count :: Expr s a -> AggregateExpr s Int
@@ -190,17 +204,18 @@ min_ (Expr e) = AggregateExpr $ "MIN(" <> e <> ")"
 
 sum_ :: (Num a, Num b) => Expr s a -> AggregateExpr s (Maybe b)
 sum_ (Expr e) = AggregateExpr $ "SUM(" <> e <> ")"
-
 -------------------------------------------------------------------------------
+
 -- * Rows
 
 row :: HKD.TraversableB (HKD table) => HKD table (Expr s) -> Expr s table
-row table = Expr $
-  "ROW(" <>
-    mconcat (intersperse ", " $ Barbie.bfoldMap (\(Expr e) -> [e]) table) <>
-  ")"
-
+row table =
+  Expr $
+    "ROW("
+      <> mconcat (intersperse ", " $ Barbie.bfoldMap (\(Expr e) -> [e]) table)
+      <> ")"
 -------------------------------------------------------------------------------
+
 -- * Going from Haskell types to database types and back
 
 class DatabaseType a where
@@ -232,33 +247,35 @@ instance DatabaseType a => DatabaseType [a] where
   arrayElement a = "ROW(" <> coerce (value a) <> ")"
 
 -- | Rows
-instance {-# OVERLAPPABLE #-}
-  (Generic table, HKD.Construct Identity table, HKD.Construct Decoding.Composite table, HKD.ConstraintsB (HKD table), HKD.TraversableB (HKD table), Barbie.AllB DatabaseType (HKD table), HKD.Tuple (Const ()) table ())
-  => DatabaseType table where
+instance
+  {-# OVERLAPPABLE #-}
+  (Generic table, HKD.Construct Identity table, HKD.Construct Decoding.Composite table, HKD.ConstraintsB (HKD table), HKD.TraversableB (HKD table), Barbie.AllB DatabaseType (HKD table), HKD.Tuple (Const ()) table ()) =>
+  DatabaseType table
+  where
   value table =
     row $ Barbie.bmapC @DatabaseType (\(Identity field) -> value field) $ HKD.deconstruct table
   typeName = "record"
   decoder =
     Decoder $
-    Decoding.composite $
-    HKD.construct $
-    Barbie.bmapC
-      @DatabaseType
-      (\(Const ()) -> case decoder of
-        Decoder d -> Decoding.valueComposite d
-        NullableDecoder d -> Decoding.nullableValueComposite d
-      )
-      mempty
-
-class Impossible where
-  impossible :: a
+      Decoding.composite $
+        HKD.construct $
+          Barbie.bmapC
+            @DatabaseType
+            ( \(Const ()) -> case decoder of
+                Decoder d -> Decoding.valueComposite d
+                NullableDecoder d -> Decoding.nullableValueComposite d
+            )
+            mempty
 
 type family NonNestedMaybe a :: Constraint where
-  NonNestedMaybe (Maybe a) = (TypeError
-    ( 'Text "Attempt to use a nested Maybe as a database type:"
-    ':<>: 'ShowType (Maybe (Maybe a))
-    ':<>: 'Text "Since Woobat maps Maybe types to nullable database types, nested Maybes are not supported."
-    ), Impossible)
+  NonNestedMaybe (Maybe a) =
+    ( TypeError
+        ( 'Text "Attempt to use a nested Maybe as a database type:"
+            ':<>: 'ShowType (Maybe (Maybe a))
+            ':<>: 'Text "Since Woobat maps Maybe types to nullable database types, nested Maybes are not supported."
+        )
+    , Impossible
+    )
   NonNestedMaybe _ = ()
 
 -- | Nullable types
@@ -409,6 +426,7 @@ instance DatabaseType DiffTime where
   decoder = Decoder Decoding.interval_int
 
 -------------------------------------------------------------------------------
+
 -- * Low-level utilities
 
 param :: forall s a. DatabaseType a => (a -> Encoding) -> a -> Expr s a
@@ -417,3 +435,6 @@ param encoding a =
 
 unsafeBinaryOperator :: Scope.Same s t => Raw.SQL -> Expr s a -> Expr t b -> Expr s c
 unsafeBinaryOperator name (Expr x) (Expr y) = Expr $ "(" <> x <> " " <> name <> " " <> y <> ")"
+
+class Impossible where
+  impossible :: a

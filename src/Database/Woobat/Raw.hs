@@ -1,4 +1,5 @@
-{-# language DeriveTraversable #-}
+{-# LANGUAGE DeriveTraversable #-}
+
 module Database.Woobat.Raw where
 
 import ByteString.StrictBuilder (Builder)
@@ -16,7 +17,7 @@ data SQLFragment
   = Code !Builder
   | Param !ByteString
   | NullParam
-  deriving Show
+  deriving (Show)
 
 instance IsString SQLFragment where
   fromString = Code . fromString
@@ -67,7 +68,8 @@ data Select = Select
   , wheres :: Tsil SQL
   , groupBys :: Tsil SQL
   , orderBys :: Tsil (SQL, Order)
-  } deriving Show
+  }
+  deriving (Show)
 
 data Order = Ascending | Descending
   deriving (Eq, Show)
