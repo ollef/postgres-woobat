@@ -206,6 +206,14 @@ sum_ :: (Num a, Num b) => Expr s a -> AggregateExpr s (Maybe b)
 sum_ (Expr e) = AggregateExpr $ "SUM(" <> e <> ")"
 -------------------------------------------------------------------------------
 
+-- * Arrays
+
+array :: forall s a. DatabaseType a => [Expr s a] -> Expr s [a]
+array exprs =
+  Expr $
+    "ARRAY[" <> mconcat (intersperse ", " $ map arrayElement exprs) <> "]::" <> typeName @[a]
+-------------------------------------------------------------------------------
+
 -- * Rows
 
 row :: HKD.TraversableB (HKD table) => HKD table (Expr s) -> Expr s table
@@ -223,8 +231,8 @@ class DatabaseType a where
   typeName :: Raw.SQL
   decoder :: Decoder a
 
-  arrayElement :: a -> Raw.SQL
-  arrayElement = coerce . value @a
+  arrayElement :: Expr s a -> Raw.SQL
+  arrayElement = coerce
 
   arrayTypeName :: Raw.SQL
   arrayTypeName = typeName @a <> "[]"
@@ -240,11 +248,10 @@ data Decoder a where
 
 -- | Arrays
 instance DatabaseType a => DatabaseType [a] where
-  value as =
-    Expr $ "ARRAY[" <> mconcat (intersperse ", " $ map arrayElement as) <> "]::" <> typeName @[a]
+  value = array . map value
   typeName = arrayTypeName @a
   decoder = Decoder $ Decoding.array $ Decoding.dimensionArray replicateM arrayElementDecoder
-  arrayElement a = "ROW(" <> coerce (value a) <> ")"
+  arrayElement a = "ROW(" <> coerce a <> ")"
 
 -- | Rows
 instance
