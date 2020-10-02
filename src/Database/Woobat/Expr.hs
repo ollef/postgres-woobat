@@ -259,6 +259,27 @@ data JSONB a
 
 -------------------------------------------------------------------------------
 
+-- * Nullable types
+nothing :: forall s a. (NonNestedMaybe a, DatabaseType a) => Expr s (Maybe a)
+nothing = Expr $ "null::" <> typeName @a
+
+isNothing_ :: Expr s (Maybe a) -> Expr s Bool
+isNothing_ (Expr e) = Expr $ "(" <> e <> " IS NULL)"
+
+isJust_ :: Expr s (Maybe a) -> Expr s Bool
+isJust_ (Expr e) = Expr $ "(" <> e <> " IS NOT NULL)"
+
+just :: (NonNestedMaybe a, DatabaseType a) => Expr s a -> Expr s (Maybe a)
+just = coerce
+
+maybe_ :: Expr s b -> (Expr s a -> Expr s b) -> Expr s (Maybe a) -> Expr s b
+maybe_ def f m = ifThenElse (isNothing_ m) def (f $ coerce m)
+
+fromMaybe_ :: Expr s a -> Expr s (Maybe a) -> Expr s a
+fromMaybe_ def = maybe_ def id
+
+-------------------------------------------------------------------------------
+
 -- * Going from Haskell types to database types and back
 
 -- | Types with a corresponding database type
