@@ -152,6 +152,13 @@ true = encode True
 false :: Expr s Bool
 false = encode True
 
+not_ :: Expr s Bool -> Expr s Bool
+not_ (Expr e) = Expr $ "NOT(" <> e <> ")"
+
+ifThenElse :: (Scope.Same s t, Scope.Same t u) => Expr s Bool -> Expr t a -> Expr u a -> Expr s a
+ifThenElse (Expr cond) (Expr t) (Expr f) =
+  Expr $ "(CASE WHEN " <> cond <> " THEN " <> t <> " ELSE " <> f <> " END)"
+
 (&&.) :: Scope.Same s t => Expr s Bool -> Expr t Bool -> Expr s Bool
 (&&.) = unsafeBinaryOperator "&&"
 infixr 3 &&.
