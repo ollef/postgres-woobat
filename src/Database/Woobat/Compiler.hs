@@ -39,15 +39,11 @@ freshName suggestion = Compiler $ do
       then suggestion
       else suggestion <> "_" <> fromString (show usedCount)
 
-compile :: [Raw.SQL] -> Raw.Select -> Compiler Raw.SQL
-compile result select =
-  compileSelect (separateBy ", " result) select
-
-compileSelect :: Raw.SQL -> Raw.Select -> Compiler Raw.SQL
+compileSelect :: [Raw.SQL] -> Raw.Select -> Compiler Raw.SQL
 compileSelect exprs Raw.Select {from = Raw.Unit, wheres = Raw.Empty, groupBys = Raw.Empty, orderBys = Raw.Empty} =
-  "SELECT " <> pure exprs
+  "SELECT " <> pure (separateBy ", " exprs)
 compileSelect exprs Raw.Select {from, wheres, groupBys, orderBys} =
-  "SELECT " <> pure exprs <> " FROM "
+  "SELECT " <> pure (separateBy ", " exprs) <> " FROM "
     <> compileFrom from
     <> pure (compileWheres wheres)
     <> pure (compileGroupBys groupBys)
@@ -66,7 +62,7 @@ compileFrom from =
     Raw.Set expr alias ->
       pure $ expr <> " AS " <> Raw.code alias
     Raw.Subquery exprAliases select alias ->
-      "(" <> compileSelect (separateBy ", " $ (\(expr, columnAlias) -> expr <> " AS " <> Raw.code columnAlias) <$> exprAliases) select <> ") AS " <> pure (Raw.code alias)
+      "(" <> compileSelect [expr <> " AS " <> Raw.code columnAlias | (expr, columnAlias) <- exprAliases] select <> ") AS " <> pure (Raw.code alias)
     Raw.CrossJoin from_ froms ->
       separateBy ", " $ compileFrom <$> from_ : toList froms
     Raw.LeftJoin left on right ->

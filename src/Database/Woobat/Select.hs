@@ -34,7 +34,7 @@ select s = do
   let (results, usedNames', rawSelect') = run mempty s
       resultsBarbie :: ToBarbie (Expr s) a (Expr s)
       resultsBarbie = toBarbie results
-      compiler = Compiler.compile (Barbie.bfoldMap (\(Expr e) -> [e]) resultsBarbie) rawSelect'
+      compiler = Compiler.compileSelect (Barbie.bfoldMap (\(Expr e) -> [e]) resultsBarbie) rawSelect'
   fst $ Compiler.run usedNames' compiler
 
 from ::
