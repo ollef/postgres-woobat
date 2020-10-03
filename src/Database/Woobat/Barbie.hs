@@ -24,19 +24,19 @@ instance HKD.FunctorB (Singleton a) where
 instance HKD.TraversableB (Singleton a) where
   btraverse f (Singleton x) = Singleton <$> f x
 
-instance Barbie f () where
-  type ToBarbie f () = Barbie.Unit
-  type FromBarbie f () g = ()
-  toBarbie () = Barbie.Unit
-  unBarbie Barbie.Unit = ()
-  fromBarbie Barbie.Unit = ()
-
 class HKD.TraversableB (ToBarbie f t) => Barbie (f :: * -> *) t where
   type ToBarbie f t :: (* -> *) -> *
   type FromBarbie f t (g :: * -> *)
   toBarbie :: t -> ToBarbie f t f
   unBarbie :: ToBarbie f t f -> t -- TODO: Remove if unused
   fromBarbie :: ToBarbie f t g -> FromBarbie f t g
+
+instance Barbie f () where
+  type ToBarbie f () = Barbie.Unit
+  type FromBarbie f () g = ()
+  toBarbie () = Barbie.Unit
+  unBarbie Barbie.Unit = ()
+  fromBarbie Barbie.Unit = ()
 
 instance Same s t => Barbie (Expr s) (Expr t a) where
   type ToBarbie (Expr s) (Expr t a) = Singleton a
