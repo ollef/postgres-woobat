@@ -29,8 +29,8 @@ import Database.Woobat.Select.Builder
 import Database.Woobat.Table (Table)
 import qualified Database.Woobat.Table as Table
 
-select :: forall s a. Barbie (Expr s) a => Select s a -> Raw.SQL
-select s = do
+compile :: forall s a. Barbie (Expr s) a => Select s a -> Raw.SQL
+compile s = do
   let (results, usedNames', rawSelect') = run mempty s
       resultsBarbie :: ToBarbie (Expr s) a (Expr s)
       resultsBarbie = toBarbie results
