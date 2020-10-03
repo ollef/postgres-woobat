@@ -50,9 +50,12 @@ library
     , generic-lens
     , higgledy >=0.3.0
     , lens
+    , monad-control
     , mtl
     , postgresql-binary
     , postgresql-libpq >=0.9.4
+    , resource-pool
+    , safe-exceptions
     , scientific
     , text
     , time
@@ -78,10 +81,13 @@ test-suite postgres-woobat-test
     , generic-lens
     , higgledy >=0.3.0
     , lens
+    , monad-control
     , mtl
     , postgres-woobat
     , postgresql-binary
     , postgresql-libpq >=0.9.4
+    , resource-pool
+    , safe-exceptions
     , scientific
     , text
     , time

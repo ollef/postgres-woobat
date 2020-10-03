@@ -12,30 +12,97 @@ module Database.Woobat.Select (
   Database.Woobat.Select.Builder.Select,
 ) where
 
+import Control.Exception.Safe
 import Control.Monad.State
 import qualified Data.Barbie as Barbie
 import Data.ByteString (ByteString)
 import Data.Functor.Const (Const (Const))
+import Data.Functor.Identity
 import Data.Functor.Product
 import Data.Generic.HKD (HKD)
 import qualified Data.Generic.HKD as HKD
+import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
+import qualified Database.PostgreSQL.LibPQ as LibPQ
 import Database.Woobat.Barbie
 import qualified Database.Woobat.Compiler as Compiler
 import Database.Woobat.Expr
+import qualified Database.Woobat.Monad as Monad
 import qualified Database.Woobat.Raw as Raw
 import Database.Woobat.Scope
 import Database.Woobat.Select.Builder
 import Database.Woobat.Table (Table)
 import qualified Database.Woobat.Table as Table
+import qualified PostgreSQL.Binary.Decoding as Decoding
 
-compile :: forall s a. Barbie (Expr s) a => Select s a -> Raw.SQL
+select ::
+  forall s a m.
+  ( MonadThrow m
+  , Monad.MonadWoobat m
+  , Barbie (Expr s) a
+  , HKD.AllB DatabaseType (ToBarbie (Expr s) a)
+  , HKD.ConstraintsB (ToBarbie (Expr s) a)
+  ) =>
+  Select s a ->
+  m [FromBarbie (Expr s) a Identity]
+select s = do
+  let (rawSQL, resultsBarbie) = compile s
+      (code, params) = Raw.separateCodeAndParams rawSQL
+  Monad.withConnection $ \connection -> liftIO $ do
+    maybeResult <-
+      LibPQ.execParams
+        connection
+        code
+        (fmap (\p -> (LibPQ.Oid 0, p, LibPQ.Binary)) <$> params)
+        LibPQ.Binary
+    case maybeResult of
+      Nothing -> throwM $ Monad.ConnectionError LibPQ.ConnectionBad
+      Just result -> do
+        status <- LibPQ.resultStatus result
+        let onError = do
+              message <- LibPQ.resultErrorMessage result
+              throwM $ Monad.ExecutionError status message
+        case status of
+          LibPQ.BadResponse -> onError
+          LibPQ.NonfatalError -> onError
+          LibPQ.FatalError -> onError
+          _ -> do
+            rowCount <- LibPQ.ntuples result
+            forM [0 .. rowCount - 1] $ \rowNumber -> do
+              let go :: DatabaseType x => Expr s x -> StateT LibPQ.Column IO (Identity x)
+                  go _ = fmap Identity $ do
+                    col <- get
+                    put $ col + 1
+                    maybeValue <- liftIO $ LibPQ.getvalue result rowNumber col
+                    case (decoder, maybeValue) of
+                      (Decoder d, Just value) ->
+                        case Decoding.valueParser d value of
+                          Left err ->
+                            throwString $ Text.unpack err -- TODO
+                          Right a ->
+                            pure a
+                      (Decoder _, Nothing) ->
+                        throwString "TODO: unexpected null"
+                      (NullableDecoder _, Nothing) ->
+                        pure Nothing
+                      (NullableDecoder d, Just value) ->
+                        case Decoding.valueParser d value of
+                          Left err ->
+                            throwString $ Text.unpack err -- TODO
+                          Right a ->
+                            pure $ Just a
+
+              barbieRow :: ToBarbie (Expr s) a Identity <-
+                flip evalStateT 0 $ Barbie.btraverseC @DatabaseType go resultsBarbie
+              pure $ fromBarbie @(Expr s) @a barbieRow
+
+compile :: forall s a. Barbie (Expr s) a => Select s a -> (Raw.SQL, ToBarbie (Expr s) a (Expr s))
 compile s = do
   let (results, usedNames', rawSelect') = run mempty s
       resultsBarbie :: ToBarbie (Expr s) a (Expr s)
       resultsBarbie = toBarbie results
       compiler = Compiler.compileSelect (Barbie.bfoldMap (\(Expr e) -> [e]) resultsBarbie) rawSelect'
-  fst $ Compiler.run usedNames' compiler
+  (fst $ Compiler.run usedNames' compiler, resultsBarbie)
 
 from ::
   forall table s.

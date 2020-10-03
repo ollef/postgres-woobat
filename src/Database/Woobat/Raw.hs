@@ -1,4 +1,6 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Database.Woobat.Raw where
 
@@ -6,12 +8,24 @@ import ByteString.StrictBuilder (Builder)
 import qualified ByteString.StrictBuilder as Builder
 import Control.Monad
 import Data.ByteString (ByteString)
+import Data.Foldable
 import Data.Sequence (Seq)
 import qualified Data.Sequence as Seq
 import Data.String
 
 newtype SQL = SQL (Seq SQLFragment)
   deriving (Show)
+
+separateCodeAndParams :: SQL -> (ByteString, [Maybe ByteString])
+separateCodeAndParams (SQL fragments) = do
+  let (codeBuilder, params, _) = foldl' go (mempty, mempty, 1 :: Int) fragments
+  (Builder.builderBytes codeBuilder, toList params)
+  where
+    go (!codeBuilder, params, !paramNumber) fragment =
+      case fragment of
+        Code c -> (codeBuilder <> c, params, paramNumber)
+        Param p -> (codeBuilder <> "$" <> Builder.asciiIntegral paramNumber, params :> Just p, paramNumber + 1)
+        NullParam -> (codeBuilder <> "$" <> Builder.asciiIntegral paramNumber, params :> Nothing, paramNumber + 1)
 
 data SQLFragment
   = Code !Builder
@@ -45,7 +59,16 @@ nullParam = SQL $ pure NullParam
 -------------------------------------------------------------------------------
 
 data Tsil a = Empty | Tsil a :> a
-  deriving (Eq, Ord, Show, Functor, Traversable, Foldable)
+  deriving (Eq, Ord, Show, Functor, Traversable)
+
+instance Foldable Tsil where
+  foldMap _ Empty = mempty
+  foldMap f (xs :> x) = foldMap f xs `mappend` f x
+
+  toList = reverse . go
+    where
+      go Empty = []
+      go (xs :> x) = x : go xs
 
 instance Semigroup (Tsil a) where
   xs <> Empty = xs
