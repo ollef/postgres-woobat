@@ -47,11 +47,20 @@ data Profile = Profile
 profile :: Table Profile
 profile = table "profile"
 
-ppp = Profile {name = "Olle", age = 33, description = "", optional = Nothing, boolean = False} ^. #name
+ppp :: Profile
+ppp =
+  Profile
+    { name = "Olle"
+    , age = 33
+    , description = ""
+    , optional = Nothing
+    , boolean = False
+    }
 
 descriptionQuery :: Select s (Expr s Text)
 descriptionQuery = do
   p <- from profile
+  where_ $ row p ==. encode ppp
   where_ $ p ^. #name ==. "Olle"
   pure $ p ^. #description
 

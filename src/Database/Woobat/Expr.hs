@@ -283,8 +283,17 @@ row :: HKD.TraversableB (HKD table) => HKD table (Expr s) -> Expr s table
 row table =
   Expr $ "ROW(" <> mconcat (intersperse ", " $ Barbie.bfoldMap (\(Expr e) -> [e]) table) <> ")"
 
-unJSONRow :: (Generic table, HKD.ConstraintsB (HKD table), HKD.TraversableB (HKD table), Barbie.AllB FromJSON (HKD table), HKD.Tuple (Const ()) table ()) => Expr s (JSONB table) -> HKD table (Expr s)
-unJSONRow (Expr json) =
+fromJSONRow ::
+  ( Generic table
+  , HKD.ConstraintsB (HKD table)
+  , HKD.TraversableB (HKD table)
+  , Barbie.AllB FromJSON (HKD table)
+  , Monoid tuple
+  , HKD.Tuple (Const ()) table tuple
+  ) =>
+  Expr s (JSONB table) ->
+  HKD table (Expr s)
+fromJSONRow (Expr json) =
   flip evalState 1 $ Barbie.btraverseC @FromJSON go mempty
   where
     go :: forall s x. FromJSON x => Const () x -> State Int (Expr s x)
@@ -301,7 +310,8 @@ instance
   , HKD.ConstraintsB (HKD table)
   , HKD.TraversableB (HKD table)
   , Barbie.AllB DatabaseType (HKD table)
-  , HKD.Tuple (Const ()) table ()
+  , Monoid tuple
+  , HKD.Tuple (Const ()) table tuple
   ) =>
   DatabaseType table
   where
@@ -329,11 +339,12 @@ instance
   , HKD.TraversableB (HKD table)
   , Barbie.AllB DatabaseType (HKD table)
   , Barbie.AllB FromJSON (HKD table)
-  , HKD.Tuple (Const ()) table ()
+  , Monoid tuple
+  , HKD.Tuple (Const ()) table tuple
   ) =>
   FromJSON table
   where
-  fromJSON = row . unJSONRow
+  fromJSON = row . fromJSONRow
 
 -------------------------------------------------------------------------------
 
