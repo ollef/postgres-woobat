@@ -1,15 +1,20 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE UndecidableSuperClasses #-}
 
 module Database.Woobat.Barbie where
 
 import qualified Data.Barbie as Barbie
+import qualified Data.Barbie.Constraints as Barbie
 import Data.Coerce
 import Data.Functor.Identity
 import Data.Functor.Product
@@ -17,16 +22,34 @@ import Data.Generic.HKD (HKD)
 import qualified Data.Generic.HKD as HKD
 import Database.Woobat.Expr
 import Database.Woobat.Scope
+import GHC.Generics
 
 newtype Singleton a f = Singleton (f a)
+  deriving (Generic)
 
-instance HKD.FunctorB (Singleton a) where
-  bmap f (Singleton x) = Singleton $ f x
+instance HKD.FunctorB (Singleton a)
 
-instance HKD.TraversableB (Singleton a) where
-  btraverse f (Singleton x) = Singleton <$> f x
+instance HKD.TraversableB (Singleton a)
+
+instance HKD.ConstraintsB (Singleton a)
 
 newtype NullableHKD hkd f = NullableHKD (hkd (NullableF f))
+
+class c (Nullable a) => ConstrainNullable c a
+
+instance c (Nullable a) => ConstrainNullable c a
+
+instance HKD.ConstraintsB hkd => HKD.ConstraintsB (NullableHKD hkd) where
+  type AllB c (NullableHKD hkd) = Barbie.AllB (ConstrainNullable c) hkd
+  baddDicts ::
+    forall c f.
+    HKD.AllB c (NullableHKD hkd) =>
+    NullableHKD hkd f ->
+    NullableHKD hkd (Product (Barbie.Dict c) f)
+  baddDicts (NullableHKD hkd) =
+    NullableHKD $
+      HKD.bmap (\(Pair Barbie.Dict (NullableF a)) -> NullableF (Pair Barbie.Dict a)) $
+        HKD.baddDicts @_ @_ @(ConstrainNullable c) hkd
 
 instance HKD.FunctorB hkd => HKD.FunctorB (NullableHKD hkd) where
   bmap f (NullableHKD hkd) =

@@ -15,6 +15,7 @@
 
 module Scratch where
 
+import Control.Exception.Safe
 import Control.Lens hiding (from)
 import Data.Generic.HKD (HKD)
 import qualified Data.Generic.HKD as HKD
@@ -55,6 +56,9 @@ descriptionQuery = do
   where_ $ p ^. #name ==. "Olle"
   pure $ p ^. #description
 
+selectDescriptionQuery :: (MonadThrow m, MonadWoobat m) => m [Text]
+selectDescriptionQuery = select descriptionQuery
+
 countProfiles :: Select s (Expr s Int, Expr s (Maybe Int), Expr s Text, Expr s Bool)
 countProfiles =
   aggregate $ do
@@ -81,11 +85,26 @@ lol = do
       opt = p' ^. #optional
   pure (name1, name2)
 
+selectLol :: (MonadThrow m, MonadWoobat m) => m [(Text, Maybe Text)]
+selectLol = select lol
+
 profiles :: Select s (HKD Profile (Expr s))
 profiles = from profile
 
+selectProfiles :: (MonadThrow m, MonadWoobat m) => m [Profile]
+selectProfiles = select profiles
+
+leftProfiles :: Select s (HKD Profile (NullableF (Expr s)))
+leftProfiles = leftJoin (from profile) $ const true
+
+selectLeftProfiles :: (MonadThrow m, MonadWoobat m) => m [Maybe Profile]
+selectLeftProfiles = select leftProfiles
+
 unit :: Select s ()
 unit = pure ()
+
+selectUnit :: (MonadThrow m, MonadWoobat m) => m [()]
+selectUnit = select unit
 
 eqProfiles :: Select s (Expr s Bool, Expr s Bool)
 eqProfiles = do
@@ -93,3 +112,6 @@ eqProfiles = do
   p2 <- from profile
   orderBy (p1 ^. #name) ascending
   pure (p1 ==. p2, p1 /=. p2)
+
+selectEqProfiles :: (MonadThrow m, MonadWoobat m) => m [(Bool, Bool)]
+selectEqProfiles = select eqProfiles
