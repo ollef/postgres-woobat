@@ -14,6 +14,7 @@ import Control.Monad.Trans.Control (MonadBaseControl)
 import Data.ByteString (ByteString)
 import Data.Pool (Pool)
 import qualified Data.Pool as Pool
+import Data.Text (Text)
 import qualified Database.PostgreSQL.LibPQ as LibPQ
 
 class MonadIO m => MonadWoobat m where
@@ -34,6 +35,11 @@ data ConnectionError = ConnectionError LibPQ.ConnStatus
   deriving (Show, Exception)
 
 data ExecutionError = ExecutionError LibPQ.ExecStatus (Maybe ByteString)
+  deriving (Show, Exception)
+
+data DecodingError
+  = DecodingError !LibPQ.Row !LibPQ.Column !Text
+  | UnexpectedNullError !LibPQ.Row !LibPQ.Column
   deriving (Show, Exception)
 
 createDefaultEnvironment :: MonadIO m => ByteString -> m Environment

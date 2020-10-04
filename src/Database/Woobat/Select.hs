@@ -21,7 +21,6 @@ import Data.Functor.Identity
 import Data.Functor.Product
 import Data.Generic.HKD (HKD)
 import qualified Data.Generic.HKD as HKD
-import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Database.PostgreSQL.LibPQ as LibPQ
 import Database.Woobat.Barbie
@@ -78,17 +77,17 @@ select s = do
                       (Decoder d, Just value) ->
                         case Decoding.valueParser d value of
                           Left err ->
-                            throwString $ Text.unpack err -- TODO
+                            throwM $ Monad.DecodingError rowNumber col err
                           Right a ->
                             pure a
                       (Decoder _, Nothing) ->
-                        throwString "TODO: unexpected null"
+                        throwM $ Monad.UnexpectedNullError rowNumber col
                       (NullableDecoder _, Nothing) ->
                         pure Nothing
                       (NullableDecoder d, Just value) ->
                         case Decoding.valueParser d value of
                           Left err ->
-                            throwString $ Text.unpack err -- TODO
+                            throwM $ Monad.DecodingError rowNumber col err
                           Right a ->
                             pure $ Just a
 
