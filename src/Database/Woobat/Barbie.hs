@@ -5,11 +5,13 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Database.Woobat.Barbie where
 
 import qualified Data.Barbie as Barbie
 import Data.Coerce
+import Data.Functor.Identity
 import Data.Functor.Product
 import Data.Generic.HKD (HKD)
 import qualified Data.Generic.HKD as HKD
@@ -166,3 +168,63 @@ fromAggregate ::
 fromAggregate =
   fromBarbie @(AggregateExpr (Inner s)) @a
     . HKD.bmap (coerce :: forall x. Expr (Inner s) x -> Expr s x)
+
+-------------------------------------------------------------------------------
+class Result a where
+  type ToResult a
+  toResult :: a -> ToResult a
+
+instance Result () where
+  type ToResult () = ()
+  toResult = id
+
+instance Result (Identity a) where
+  type ToResult (Identity a) = a
+  toResult = runIdentity
+
+instance HKD.Construct Identity table => Result (HKD table Identity) where
+  type ToResult (HKD table Identity) = table
+  toResult table = runIdentity $ HKD.construct table
+
+class FromNullable a where
+  fromNullable :: Nullable a -> Maybe a
+
+instance {-# OVERLAPPABLE #-} (Nullable a ~ Maybe a) => FromNullable a where
+  fromNullable = id
+
+instance FromNullable (Maybe a) where
+  fromNullable = Just
+
+instance (HKD.Construct Maybe table, HKD.ConstraintsB (HKD table), HKD.AllB FromNullable (HKD table)) => Result (HKD table (NullableF Identity)) where
+  type ToResult (HKD table (NullableF Identity)) = Maybe table
+  toResult table =
+    HKD.construct $
+      Barbie.bmapC @FromNullable (\(NullableF (Identity x)) -> fromNullable x) table
+
+instance (Result a, Result b) => Result (a, b) where
+  type ToResult (a, b) = (ToResult a, ToResult b)
+  toResult (a, b) = (toResult a, toResult b)
+
+instance (Result a, Result b, Result c) => Result (a, b, c) where
+  type ToResult (a, b, c) = (ToResult a, ToResult b, ToResult c)
+  toResult (a, b, c) = (toResult a, toResult b, toResult c)
+
+instance (Result a, Result b, Result c, Result d) => Result (a, b, c, d) where
+  type ToResult (a, b, c, d) = (ToResult a, ToResult b, ToResult c, ToResult d)
+  toResult (a, b, c, d) = (toResult a, toResult b, toResult c, toResult d)
+
+instance (Result a, Result b, Result c, Result d, Result e) => Result (a, b, c, d, e) where
+  type ToResult (a, b, c, d, e) = (ToResult a, ToResult b, ToResult c, ToResult d, ToResult e)
+  toResult (a, b, c, d, e) = (toResult a, toResult b, toResult c, toResult d, toResult e)
+
+instance (Result a, Result b, Result c, Result d, Result e, Result f) => Result (a, b, c, d, e, f) where
+  type ToResult (a, b, c, d, e, f) = (ToResult a, ToResult b, ToResult c, ToResult d, ToResult e, ToResult f)
+  toResult (a, b, c, d, e, f) = (toResult a, toResult b, toResult c, toResult d, toResult e, toResult f)
+
+instance (Result a, Result b, Result c, Result d, Result e, Result f, Result g) => Result (a, b, c, d, e, f, g) where
+  type ToResult (a, b, c, d, e, f, g) = (ToResult a, ToResult b, ToResult c, ToResult d, ToResult e, ToResult f, ToResult g)
+  toResult (a, b, c, d, e, f, g) = (toResult a, toResult b, toResult c, toResult d, toResult e, toResult f, toResult g)
+
+instance (Result a, Result b, Result c, Result d, Result e, Result f, Result g, Result h) => Result (a, b, c, d, e, f, g, h) where
+  type ToResult (a, b, c, d, e, f, g, h) = (ToResult a, ToResult b, ToResult c, ToResult d, ToResult e, ToResult f, ToResult g, ToResult h)
+  toResult (a, b, c, d, e, f, g, h) = (toResult a, toResult b, toResult c, toResult d, toResult e, toResult f, toResult g, toResult h)

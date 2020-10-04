@@ -42,9 +42,10 @@ select ::
   , Barbie (Expr s) a
   , HKD.AllB DatabaseType (ToBarbie (Expr s) a)
   , HKD.ConstraintsB (ToBarbie (Expr s) a)
+  , Result (FromBarbie (Expr s) a Identity)
   ) =>
   Select s a ->
-  m [FromBarbie (Expr s) a Identity]
+  m [ToResult (FromBarbie (Expr s) a Identity)]
 select s = do
   let (rawSQL, resultsBarbie) = compile s
       (code, params) = Raw.separateCodeAndParams rawSQL
@@ -94,7 +95,7 @@ select s = do
 
               barbieRow :: ToBarbie (Expr s) a Identity <-
                 flip evalStateT 0 $ Barbie.btraverseC @DatabaseType go resultsBarbie
-              pure $ fromBarbie @(Expr s) @a barbieRow
+              pure $ toResult $ fromBarbie @(Expr s) @a barbieRow
 
 compile :: forall s a. Barbie (Expr s) a => Select s a -> (Raw.SQL, ToBarbie (Expr s) a (Expr s))
 compile s = do
