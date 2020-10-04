@@ -58,6 +58,10 @@ createDefaultEnvironment connectionInfo = do
       , ongoingTransaction = Nothing
       }
 
+destroyEnvironment :: MonadIO m => Environment -> m ()
+destroyEnvironment =
+  liftIO . Pool.destroyAllResources . connectionPool
+
 connect :: (MonadMask m, MonadIO m) => ByteString -> m LibPQ.Connection
 connect connectionInfo =
   bracketOnError (liftIO $ LibPQ.connectdb connectionInfo) close $ \connection -> do
