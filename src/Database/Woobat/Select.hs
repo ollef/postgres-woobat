@@ -37,8 +37,7 @@ import qualified PostgreSQL.Binary.Decoding as Decoding
 
 select ::
   forall s a m.
-  ( MonadThrow m
-  , Monad.MonadWoobat m
+  ( Monad.MonadWoobat m
   , Barbie (Expr s) a
   , HKD.AllB DatabaseType (ToBarbie (Expr s) a)
   , HKD.ConstraintsB (ToBarbie (Expr s) a)
