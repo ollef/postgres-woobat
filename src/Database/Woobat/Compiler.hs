@@ -40,11 +40,12 @@ freshName suggestion = Compiler $ do
       else suggestion <> "_" <> fromString (show usedCount)
 
 compileSelect :: [Raw.SQL] -> Raw.Select -> Compiler Raw.SQL
-compileSelect exprs Raw.Select {from = Raw.Unit, wheres = Raw.Empty, groupBys = Raw.Empty, orderBys = Raw.Empty} =
-  "SELECT " <> pure (separateBy ", " exprs)
 compileSelect exprs Raw.Select {from, wheres, groupBys, orderBys} =
-  "SELECT " <> pure (separateBy ", " exprs) <> " FROM "
-    <> compileFrom from
+  "SELECT " <> pure (separateBy ", " exprs)
+    <> ( case from of
+          Raw.Unit -> mempty
+          _ -> " FROM " <> compileFrom from
+       )
     <> pure (compileWheres wheres)
     <> pure (compileGroupBys groupBys)
     <> pure (compileOrderBys orderBys)
