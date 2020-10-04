@@ -24,6 +24,16 @@ instance HKD.FunctorB (Singleton a) where
 instance HKD.TraversableB (Singleton a) where
   btraverse f (Singleton x) = Singleton <$> f x
 
+newtype NullableHKD hkd f = NullableHKD (hkd (NullableF f))
+
+instance HKD.FunctorB hkd => HKD.FunctorB (NullableHKD hkd) where
+  bmap f (NullableHKD hkd) =
+    NullableHKD $ HKD.bmap (\(NullableF x) -> NullableF $ f x) hkd
+
+instance HKD.TraversableB hkd => HKD.TraversableB (NullableHKD hkd) where
+  btraverse f (NullableHKD hkd) =
+    NullableHKD <$> HKD.btraverse (\(NullableF x) -> NullableF <$> f x) hkd
+
 class HKD.TraversableB (ToBarbie f t) => Barbie (f :: * -> *) t where
   type ToBarbie f t :: (* -> *) -> *
   type FromBarbie f t (g :: * -> *)
@@ -45,11 +55,11 @@ instance Same s t => Barbie (Expr s) (Expr t a) where
   unBarbie (Singleton x) = x
   fromBarbie (Singleton x) = x
 
-instance Same s t => Barbie (Expr s) (NullableExpr t a) where
-  type ToBarbie (Expr s) (NullableExpr t a) = Singleton (Nullable a)
-  type FromBarbie (Expr s) (NullableExpr t a) g = g (Nullable a)
-  toBarbie (NullableExpr e) = Singleton e
-  unBarbie (Singleton x) = NullableExpr x
+instance Barbie f (NullableF f a) where
+  type ToBarbie f (NullableF f a) = Singleton (Nullable a)
+  type FromBarbie f (NullableF f a) g = g (Nullable a)
+  toBarbie (NullableF x) = Singleton x
+  unBarbie (Singleton x) = NullableF x
   fromBarbie (Singleton x) = x
 
 instance Same s t => Barbie (AggregateExpr s) (AggregateExpr t a) where
@@ -59,12 +69,19 @@ instance Same s t => Barbie (AggregateExpr s) (AggregateExpr t a) where
   unBarbie (Singleton x) = x
   fromBarbie (Singleton x) = x
 
-instance HKD.TraversableB (HKD table) => Barbie f (HKD table f) where
-  type ToBarbie f (HKD table f) = HKD table
-  type FromBarbie f (HKD table f) g = HKD table g
+instance (Same s t, HKD.TraversableB (HKD table)) => Barbie (Expr s) (HKD table (Expr t)) where
+  type ToBarbie (Expr s) (HKD table (Expr t)) = HKD table
+  type FromBarbie (Expr s) (HKD table (Expr t)) g = HKD table g
   toBarbie = id
   unBarbie = id
   fromBarbie = id
+
+instance HKD.TraversableB (HKD table) => Barbie f (HKD table (NullableF f)) where
+  type ToBarbie f (HKD table (NullableF f)) = NullableHKD (HKD table)
+  type FromBarbie f (HKD table (NullableF f)) g = HKD table (NullableF g)
+  toBarbie = NullableHKD
+  unBarbie (NullableHKD x) = x
+  fromBarbie (NullableHKD x) = x
 
 instance (Barbie f a, Barbie f b) => Barbie f (a, b) where
   type ToBarbie f (a, b) = Product (ToBarbie f a) (ToBarbie f b)
@@ -128,7 +145,7 @@ toOuter =
   fromBarbie @(Expr (Inner s)) @a
     . HKD.bmap (coerce :: forall x. Expr (Inner s) x -> Expr s x)
 
-type ToLeft s a = FromBarbie (Expr (Inner s)) a (NullableExpr s)
+type ToLeft s a = FromBarbie (Expr (Inner s)) a (NullableF (Expr s))
 
 toLeft ::
   forall s a.

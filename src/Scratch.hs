@@ -28,12 +28,12 @@ import GHC.OverloadedLabels (IsLabel (fromLabel))
 instance
   {-# OVERLAPPING #-}
   ( Functor f
-  , HasField' field (HKD structure (NullableExpr s)) (NullableExpr s a)
+  , HasField' field (HKD structure (NullableF g)) (NullableF g a)
   , na ~ Nullable a
   ) =>
-  IsLabel field ((Expr s na -> f (Expr s na)) -> HKD structure (NullableExpr s) -> f (HKD structure (NullableExpr s)))
+  IsLabel field ((g na -> f (g na)) -> HKD structure (NullableF g) -> f (HKD structure (NullableF g)))
   where
-  fromLabel = HKD.field @field . lens (\(NullableExpr e) -> e) const
+  fromLabel = HKD.field @field . lens (\(NullableF e) -> e) const
 
 data Profile = Profile
   { name :: !Text
