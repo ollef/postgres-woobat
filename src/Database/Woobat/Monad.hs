@@ -29,6 +29,10 @@ type Woobat = WoobatT IO
 newtype WoobatT m a = WoobatT {unWoobatT :: ReaderT Environment m a}
   deriving newtype (Functor, Applicative, Monad, MonadIO, MonadThrow)
 
+runWoobatT :: (MonadIO m, MonadMask m) => ByteString -> WoobatT m a -> m a
+runWoobatT connectionInfo (WoobatT m) =
+  bracket (createDefaultEnvironment connectionInfo) destroyEnvironment $ runReaderT m
+
 data Environment = Environment
   { connectionPool :: !(Pool LibPQ.Connection)
   , ongoingTransaction :: !(Maybe LibPQ.Connection)
