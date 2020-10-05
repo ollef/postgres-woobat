@@ -65,7 +65,7 @@ library
 
 test-suite postgres-woobat-test
   type: exitcode-stdio-1.0
-  main-is: Spec.hs
+  main-is: Main.hs
   other-modules:
       Paths_postgres_woobat
   hs-source-dirs:
@@ -79,6 +79,7 @@ test-suite postgres-woobat-test
     , bytestring-strict-builder
     , containers
     , generic-lens
+    , hedgehog
     , higgledy >=0.3.0
     , lens
     , monad-control
