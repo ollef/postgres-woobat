@@ -162,11 +162,11 @@ ifThenElse :: (Scope.Same s t, Scope.Same t u) => Expr s Bool -> Expr t a -> Exp
 ifThenElse cond t f = if_ [(cond, t)] f
 
 (&&.) :: Scope.Same s t => Expr s Bool -> Expr t Bool -> Expr s Bool
-(&&.) = unsafeBinaryOperator "&&"
+(&&.) = unsafeBinaryOperator "AND"
 infixr 3 &&.
 
 (||.) :: Scope.Same s t => Expr s a -> Expr t a -> Expr s Bool
-(||.) = unsafeBinaryOperator "||"
+(||.) = unsafeBinaryOperator "OR"
 infixr 2 ||.
 
 -------------------------------------------------------------------------------
