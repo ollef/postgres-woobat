@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Database.Woobat.Raw where
@@ -87,7 +88,7 @@ instance Monad Tsil where
   xs :> x >>= f = (xs >>= f) <> f x
 
 data Select = Select
-  { from :: !From
+  { from :: !(From ())
   , wheres :: Tsil SQL
   , groupBys :: Tsil SQL
   , orderBys :: Tsil (SQL, Order)
@@ -97,14 +98,14 @@ data Select = Select
 data Order = Ascending | Descending
   deriving (Eq, Show)
 
-data From
-  = Unit
+data From unitAlias
+  = Unit !unitAlias
   | Table !ByteString !ByteString
   | Set !SQL !ByteString
   | Subquery [(SQL, ByteString)] !Select !ByteString
-  | CrossJoin From (Seq From)
-  | LeftJoin !From !SQL !From
-  deriving (Show)
+  | CrossJoin (From ByteString) (Seq (From ByteString))
+  | LeftJoin !(From ByteString) !SQL !(From ByteString)
+  deriving (Functor, Foldable, Traversable, Show)
 
 instance Semigroup Select where
   Select a1 b1 c1 d1 <> Select a2 b2 c2 d2 =
@@ -113,13 +114,23 @@ instance Semigroup Select where
 instance Monoid Select where
   mempty = Select mempty mempty mempty mempty
 
-instance Semigroup From where
-  Unit <> from_ = from_
-  from_ <> Unit = from_
-  CrossJoin from1 froms1 <> CrossJoin from2 froms2 = CrossJoin from1 (froms1 <> pure from2 <> froms2)
-  CrossJoin from1 froms <> from2 = CrossJoin from1 (froms Seq.:|> from2)
-  from1 <> CrossJoin from2 froms = CrossJoin from1 (from2 Seq.:<| froms)
-  from1 <> from2 = CrossJoin from1 (pure from2)
+unitView :: From unitAlias -> Either (From unitAlias') unitAlias
+unitView (Unit alias) = Right alias
+unitView (Table table alias) = Left (Table table alias)
+unitView (Set expr alias) = Left (Set expr alias)
+unitView (Subquery results select alias) = Left (Subquery results select alias)
+unitView (CrossJoin from_ froms) = Left (CrossJoin from_ froms)
+unitView (LeftJoin from1 on from2) = Left (LeftJoin from1 on from2)
 
-instance Monoid From where
-  mempty = Unit
+instance Semigroup (From unitAlias) where
+  outerFrom1 <> outerFrom2 =
+    case (unitView outerFrom1, unitView outerFrom2) of
+      (Right _, _) -> outerFrom2
+      (_, Right _) -> outerFrom1
+      (Left (CrossJoin from1 froms1), Left (CrossJoin from2 froms2)) -> CrossJoin from1 (froms1 <> pure from2 <> froms2)
+      (Left (CrossJoin from1 froms), Left from2) -> CrossJoin from1 (froms Seq.:|> from2)
+      (Left from1, Left (CrossJoin from2 froms)) -> CrossJoin from1 (from2 Seq.:<| froms)
+      (Left from1, Left from2) -> CrossJoin from1 (pure from2)
+
+instance Monoid (From ()) where
+  mempty = Unit ()

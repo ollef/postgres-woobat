@@ -1,73 +1,43 @@
 {-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Database.Woobat.Compiler where
 
-import Control.Monad.State
 import Data.ByteString (ByteString)
 import Data.Foldable
-import Data.HashMap.Lazy (HashMap)
-import qualified Data.HashMap.Lazy as HashMap
 import Data.List
-import Data.String
 import qualified Database.Woobat.Raw as Raw
 
-newtype Compiler a = Compiler (State (HashMap ByteString Int) a)
-  deriving (Functor, Applicative, Monad, MonadState (HashMap ByteString Int))
-
-run :: HashMap ByteString Int -> Compiler a -> (a, HashMap ByteString Int)
-run usedNames (Compiler s) = runState s usedNames
-
-instance Monoid a => Monoid (Compiler a) where
-  mempty = pure mempty
-
-instance Semigroup a => Semigroup (Compiler a) where
-  ma <> mb = (<>) <$> ma <*> mb
-
-instance IsString a => IsString (Compiler a) where
-  fromString = pure . fromString
-
-freshName :: ByteString -> Compiler ByteString
-freshName suggestion = Compiler $ do
-  used <- get
-  let usedCount = HashMap.lookupDefault 0 suggestion used
-  put $ HashMap.insert suggestion (usedCount + 1) used
-  pure $
-    if usedCount == 0
-      then suggestion
-      else suggestion <> "_" <> fromString (show usedCount)
-
-compileSelect :: [Raw.SQL] -> Raw.Select -> Compiler Raw.SQL
+compileSelect :: [Raw.SQL] -> Raw.Select -> Raw.SQL
 compileSelect exprs Raw.Select {from, wheres, groupBys, orderBys} =
-  "SELECT " <> pure (separateBy ", " exprs)
-    <> ( case from of
-          Raw.Unit -> mempty
-          _ -> " FROM " <> compileFrom from
+  "SELECT " <> separateBy ", " exprs
+    <> ( case Raw.unitView from of
+          Right () -> mempty
+          Left from' -> " FROM " <> compileFrom from'
        )
-    <> pure (compileWheres wheres)
-    <> pure (compileGroupBys groupBys)
-    <> pure (compileOrderBys orderBys)
+    <> compileWheres wheres
+    <> compileGroupBys groupBys
+    <> compileOrderBys orderBys
 
-compileFrom :: Raw.From -> Compiler Raw.SQL
+compileFrom :: Raw.From ByteString -> Raw.SQL
 compileFrom from =
   case from of
-    Raw.Unit ->
-      "(VALUES (0)) " <> fmap Raw.code (freshName "unit")
+    Raw.Unit alias ->
+      "(VALUES (0)) " <> Raw.code alias
     Raw.Table name alias
       | name == alias ->
-        pure $ Raw.code name
+        Raw.code name
       | otherwise ->
-        pure $ Raw.code name <> " AS " <> Raw.code alias
+        Raw.code name <> " AS " <> Raw.code alias
     Raw.Set expr alias ->
-      pure $ expr <> " AS " <> Raw.code alias
+      expr <> " AS " <> Raw.code alias
     Raw.Subquery exprAliases select alias ->
-      "(" <> compileSelect [expr <> " AS " <> Raw.code columnAlias | (expr, columnAlias) <- exprAliases] select <> ") AS " <> pure (Raw.code alias)
+      "(" <> compileSelect [expr <> " AS " <> Raw.code columnAlias | (expr, columnAlias) <- exprAliases] select <> ") AS " <> Raw.code alias
     Raw.CrossJoin from_ froms ->
       separateBy ", " $ compileFrom <$> from_ : toList froms
     Raw.LeftJoin left on right ->
-      compileFrom left <> " LEFT JOIN " <> compileFrom right <> " ON " <> pure on
+      compileFrom left <> " LEFT JOIN " <> compileFrom right <> " ON " <> on
 
 compileWheres :: Raw.Tsil Raw.SQL -> Raw.SQL
 compileWheres Raw.Empty = mempty

@@ -97,11 +97,11 @@ select s = do
 
 compile :: forall s a. Barbie (Expr s) a => Select s a -> (Raw.SQL, ToBarbie (Expr s) a (Expr s))
 compile s = do
-  let (results, usedNames', rawSelect') = run mempty s
+  let (results, st) = run mempty s
       resultsBarbie :: ToBarbie (Expr s) a (Expr s)
       resultsBarbie = toBarbie results
-      compiler = Compiler.compileSelect (Barbie.bfoldMap (\(Expr e) -> [e]) resultsBarbie) rawSelect'
-  (fst $ Compiler.run usedNames' compiler, resultsBarbie)
+      sql = Compiler.compileSelect (Barbie.bfoldMap (\(Expr e) -> [e]) resultsBarbie) $ rawSelect st
+  (sql, resultsBarbie)
 
 from ::
   forall table s.
@@ -148,16 +148,19 @@ leftJoin (Select sel) on = Select $ do
   (innerResults, rightSelect) <- subquery sel
   let innerResultsBarbie :: ToBarbie (Expr (Inner s)) a (Expr (Inner s))
       innerResultsBarbie = toBarbie innerResults
+  leftFrom <- gets $ Raw.from . rawSelect
+  leftFrom' <- mapM (\() -> freshName "unit") leftFrom
   case rightSelect of
     Raw.Select rightFrom Raw.Empty Raw.Empty Raw.Empty -> do
       let Expr rawOn =
             on $ toOuter @s @a innerResultsBarbie
+      rightFrom' <- mapM (\() -> freshName "unit") rightFrom
       modify $ \s ->
         s
           { rawSelect =
               (rawSelect s)
                 { Raw.from =
-                    Raw.LeftJoin (Raw.from $ rawSelect s) rawOn rightFrom
+                    Raw.LeftJoin leftFrom' rawOn rightFrom'
                 }
           }
       return $ toLeft @s @a innerResultsBarbie
@@ -181,7 +184,7 @@ leftJoin (Select sel) on = Select $ do
               (rawSelect s)
                 { Raw.from =
                     Raw.LeftJoin
-                      (Raw.from $ rawSelect s)
+                      leftFrom'
                       rawOn
                       ( Raw.Subquery
                           (Barbie.bfoldMap (\(Pair (Const name) (Expr e)) -> pure (e, name)) namedResults)

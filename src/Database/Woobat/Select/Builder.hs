@@ -18,10 +18,9 @@ data SelectState = SelectState
   , rawSelect :: !Raw.Select
   }
 
-run :: HashMap ByteString Int -> Select s a -> (a, HashMap ByteString Int, Raw.Select)
-run used (Select s) = do
-  let (a, st) = runState s SelectState {usedNames = used, rawSelect = mempty}
-  (a, usedNames st, rawSelect st)
+run :: HashMap ByteString Int -> Select s a -> (a, SelectState)
+run used (Select s) =
+  runState s SelectState {usedNames = used, rawSelect = mempty}
 
 freshName :: ByteString -> State SelectState ByteString
 freshName suggestion = do
@@ -36,9 +35,9 @@ freshName suggestion = do
 subquery :: State SelectState a -> State SelectState (a, Raw.Select)
 subquery q = do
   used <- gets usedNames
-  let (result, usedNames', rawSelect') = run used $ Select q
-  modify $ \s -> s {usedNames = usedNames'}
-  pure (result, rawSelect')
+  let (result, st) = run used $ Select q
+  modify $ \s -> s {usedNames = usedNames st}
+  pure (result, rawSelect st)
 
 addSelect :: Raw.Select -> State SelectState ()
 addSelect sel =
