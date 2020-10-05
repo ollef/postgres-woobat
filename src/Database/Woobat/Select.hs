@@ -44,16 +44,12 @@ select ::
   ) =>
   Select s a ->
   m [ToResult (FromBarbie (Expr s) a Identity)]
-select s = do
-  let (rawSQL, resultsBarbie) = compile s
-      (code, params) = Raw.separateCodeAndParams rawSQL
+select s =
   Monad.withConnection $ \connection -> liftIO $ do
-    maybeResult <-
-      LibPQ.execParams
-        connection
-        code
-        (fmap (\p -> (LibPQ.Oid 0, p, LibPQ.Binary)) <$> params)
-        LibPQ.Binary
+    let (rawSQL, resultsBarbie) = compile s
+        (code, params) = Raw.separateCodeAndParams rawSQL
+        params' = fmap (\p -> (LibPQ.Oid 0, p, LibPQ.Binary)) <$> params
+    maybeResult <- LibPQ.execParams connection code params' LibPQ.Binary
     case maybeResult of
       Nothing -> throwM $ Monad.ConnectionError LibPQ.ConnectionBad
       Just result -> do
