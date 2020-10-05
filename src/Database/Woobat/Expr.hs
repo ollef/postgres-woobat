@@ -96,6 +96,10 @@ instance {-# OVERLAPPABLE #-} (Integral a, DatabaseType a) => Fractional (Expr s
   fromRational = encode . (truncate :: Double -> a) . fromRational
   (/) = unsafeBinaryOperator "/"
 
+instance Fractional (Expr s Float) where
+  fromRational = encode . fromRational
+  (/) = unsafeBinaryOperator "/"
+
 instance Fractional (Expr s Double) where
   fromRational = encode . fromRational
   (/) = unsafeBinaryOperator "/"
