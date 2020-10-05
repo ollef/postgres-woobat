@@ -27,7 +27,7 @@ class MonadIO m => MonadWoobat m where
 type Woobat = WoobatT IO
 
 newtype WoobatT m a = WoobatT {unWoobatT :: ReaderT Environment m a}
-  deriving newtype (Functor, Applicative, Monad, MonadIO)
+  deriving newtype (Functor, Applicative, Monad, MonadIO, MonadThrow)
 
 data Environment = Environment
   { connectionPool :: !(Pool LibPQ.Connection)
