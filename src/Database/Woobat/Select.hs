@@ -61,39 +61,46 @@ select s = do
         let onError = do
               message <- LibPQ.resultErrorMessage result
               throwM $ Monad.ExecutionError status message
+            onResult = do
+              rowCount <- LibPQ.ntuples result
+              forM [0 .. rowCount - 1] $ \rowNumber -> do
+                let go :: DatabaseType x => Expr s x -> StateT LibPQ.Column IO (Identity x)
+                    go _ = fmap Identity $ do
+                      col <- get
+                      put $ col + 1
+                      maybeValue <- liftIO $ LibPQ.getvalue result rowNumber col
+                      case (decoder, maybeValue) of
+                        (Decoder d, Just value) ->
+                          case Decoding.valueParser d value of
+                            Left err ->
+                              throwM $ Monad.DecodingError rowNumber col err
+                            Right a ->
+                              pure a
+                        (Decoder _, Nothing) ->
+                          throwM $ Monad.UnexpectedNullError rowNumber col
+                        (NullableDecoder _, Nothing) ->
+                          pure Nothing
+                        (NullableDecoder d, Just value) ->
+                          case Decoding.valueParser d value of
+                            Left err ->
+                              throwM $ Monad.DecodingError rowNumber col err
+                            Right a ->
+                              pure $ Just a
+
+                barbieRow :: ToBarbie (Expr s) a Identity <-
+                  flip evalStateT 0 $ Barbie.btraverseC @DatabaseType go resultsBarbie
+                pure $ toResult $ fromBarbie @(Expr s) @a barbieRow
         case status of
+          LibPQ.EmptyQuery -> onError
+          LibPQ.CommandOk -> onError
+          LibPQ.CopyOut -> onError
+          LibPQ.CopyIn -> onError
+          LibPQ.CopyBoth -> onError
           LibPQ.BadResponse -> onError
           LibPQ.NonfatalError -> onError
           LibPQ.FatalError -> onError
-          _ -> do
-            rowCount <- LibPQ.ntuples result
-            forM [0 .. rowCount - 1] $ \rowNumber -> do
-              let go :: DatabaseType x => Expr s x -> StateT LibPQ.Column IO (Identity x)
-                  go _ = fmap Identity $ do
-                    col <- get
-                    put $ col + 1
-                    maybeValue <- liftIO $ LibPQ.getvalue result rowNumber col
-                    case (decoder, maybeValue) of
-                      (Decoder d, Just value) ->
-                        case Decoding.valueParser d value of
-                          Left err ->
-                            throwM $ Monad.DecodingError rowNumber col err
-                          Right a ->
-                            pure a
-                      (Decoder _, Nothing) ->
-                        throwM $ Monad.UnexpectedNullError rowNumber col
-                      (NullableDecoder _, Nothing) ->
-                        pure Nothing
-                      (NullableDecoder d, Just value) ->
-                        case Decoding.valueParser d value of
-                          Left err ->
-                            throwM $ Monad.DecodingError rowNumber col err
-                          Right a ->
-                            pure $ Just a
-
-              barbieRow :: ToBarbie (Expr s) a Identity <-
-                flip evalStateT 0 $ Barbie.btraverseC @DatabaseType go resultsBarbie
-              pure $ toResult $ fromBarbie @(Expr s) @a barbieRow
+          LibPQ.SingleTuple -> onResult
+          LibPQ.TuplesOk -> onResult
 
 compile :: forall s a. Barbie (Expr s) a => Select s a -> (Raw.SQL, ToBarbie (Expr s) a (Expr s))
 compile s = do
