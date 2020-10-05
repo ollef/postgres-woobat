@@ -23,6 +23,7 @@ import qualified Data.Barbie.Constraints as Barbie
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as Lazy
 import Data.Coerce
+import Data.Foldable
 import Data.Functor.Const
 import Data.Functor.Identity
 import Data.Functor.Product
@@ -31,6 +32,7 @@ import qualified Data.Generic.HKD as HKD
 import Data.Int
 import Data.Kind (Constraint)
 import Data.List
+import Data.List.NonEmpty (NonEmpty)
 import Data.Scientific
 import Data.String (IsString, fromString)
 import Data.Text (Text)
@@ -187,6 +189,11 @@ infixr 2 ||.
 
 infix 4 <., <=., >., >=.
 
+greatest :: NonEmpty (Expr s a) -> Expr s a
+greatest args = Expr $ "GREATEST(" <> mconcat (intersperse ", " (toList $ coerce <$> args)) <> ")"
+
+least :: NonEmpty (Expr s a) -> Expr s a
+least args = Expr $ "LEAST(" <> mconcat (intersperse ", " (toList $ coerce <$> args)) <> ")"
 -------------------------------------------------------------------------------
 
 -- * Aggregates
