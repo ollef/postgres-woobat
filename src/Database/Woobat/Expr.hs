@@ -395,7 +395,7 @@ maybe_ :: Expr s b -> (Expr s a -> Expr s b) -> Expr s (Maybe a) -> Expr s b
 maybe_ def f m = ifThenElse (isNothing_ m) def (f $ coerce m)
 
 fromMaybe_ :: Expr s a -> Expr s (Maybe a) -> Expr s a
-fromMaybe_ def = maybe_ def id
+fromMaybe_ (Expr def) (Expr m) = Expr $ "COALESCE(" <> m <> ", " <> def <> ")"
 
 instance (NonNestedMaybe a, DatabaseType a) => DatabaseType (Maybe a) where
   typeName = typeName @a
