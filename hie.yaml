@@ -1,0 +1,7 @@
+cradle:
+  stack:
+    - path: "./src"
+      component: "postgres-woobat:lib"
+
+    - path: "./test"
+      component: "postgres-woobat:test:postgres-woobat-test"
