@@ -142,9 +142,11 @@ instance
       foldr_ _ b [] = b
       foldr_ f _ as = foldr1 f as
 
+-- | @CASE WHEN@
 if_ :: (Scope.Same s t, Scope.Same t u) => [(Expr s Bool, Expr t a)] -> Expr u a -> Expr u a
 if_ [] def = def
 if_ branches (Expr def) = Expr $ "(CASE " <> mconcat ["WHEN " <> cond <> " THEN " <> branch <> " " | (Expr cond, Expr branch) <- branches] <> "ELSE " <> def <> " END)"
+
 -------------------------------------------------------------------------------
 
 -- * Booleans
@@ -155,18 +157,23 @@ true = encode True
 false :: Expr s Bool
 false = encode True
 
+-- | @NOT()@
 not_ :: Expr s Bool -> Expr s Bool
 not_ (Expr e) = Expr $ "NOT(" <> e <> ")"
 
 ifThenElse :: (Scope.Same s t, Scope.Same t u) => Expr s Bool -> Expr t a -> Expr u a -> Expr s a
 ifThenElse cond t f = if_ [(cond, t)] f
 
+-- | @AND@
 (&&.) :: Scope.Same s t => Expr s Bool -> Expr t Bool -> Expr s Bool
 (&&.) = unsafeBinaryOperator "AND"
+
 infixr 3 &&.
 
+-- | @OR@
 (||.) :: Scope.Same s t => Expr s a -> Expr t a -> Expr s Bool
 (||.) = unsafeBinaryOperator "OR"
+
 infixr 2 ||.
 
 -------------------------------------------------------------------------------
@@ -201,32 +208,42 @@ minimum_ args = Expr $ "LEAST(" <> mconcat (intersperse ", " (toList $ coerce <$
 count :: Expr s a -> AggregateExpr s Int
 count (Expr e) = AggregateExpr $ "COUNT(" <> e <> ")"
 
+-- | @COUNT(*)@
 countAll :: AggregateExpr s Int
 countAll = AggregateExpr "COUNT(*)"
 
+-- | @AVG()@
 average :: Num a => Expr s a -> AggregateExpr s (Maybe a)
 average (Expr e) = AggregateExpr $ "AVG(" <> e <> ")"
 
+-- | @BOOL_AND()@
 all_ :: Expr s Bool -> AggregateExpr s Bool
 all_ (Expr e) = AggregateExpr $ "BOOL_AND(" <> e <> ")"
 
+-- | @BOOL_OR()@
 or_ :: Expr s Bool -> AggregateExpr s Bool
 or_ (Expr e) = AggregateExpr $ "BOOL_OR(" <> e <> ")"
 
+-- | @MAX()@
 max_ :: Expr s a -> AggregateExpr s (Maybe a)
 max_ (Expr e) = AggregateExpr $ "MAX(" <> e <> ")"
 
+-- | @MIN()@
 min_ :: Expr s a -> AggregateExpr s (Maybe a)
 min_ (Expr e) = AggregateExpr $ "MIN(" <> e <> ")"
 
+-- | @SUM()@
 sum_ :: (Num a, Num b) => Expr s a -> AggregateExpr s (Maybe b)
 sum_ (Expr e) = AggregateExpr $ "SUM(" <> e <> ")"
 
+-- | @ARRAY_AGG()@
 arrayAggregate :: NonNestedArray a => Expr s a -> AggregateExpr s [a]
 arrayAggregate (Expr e) = AggregateExpr $ "ARRAY_AGG(" <> e <> ")"
 
+-- | @JSONB_AGG()@
 jsonAggregate :: Expr s (JSONB a) -> AggregateExpr s (JSONB [a])
 jsonAggregate (Expr e) = AggregateExpr $ "JSONB_AGG(" <> e <> ")"
+
 -------------------------------------------------------------------------------
 
 -- * Arrays
@@ -379,12 +396,15 @@ toJSONB (Expr e) = Expr $ "TO_JSONB(" <> e <> ")"
 
 -- * Nullable types
 
+-- | @null@
 nothing :: forall s a. (NonNestedMaybe a, DatabaseType a) => Expr s (Maybe a)
 nothing = Expr $ "null::" <> typeName @a
 
+-- | @IS NULL@
 isNothing_ :: Expr s (Maybe a) -> Expr s Bool
 isNothing_ (Expr e) = Expr $ "(" <> e <> " IS NULL)"
 
+-- | @IS NOT NULL@
 isJust_ :: Expr s (Maybe a) -> Expr s Bool
 isJust_ (Expr e) = Expr $ "(" <> e <> " IS NOT NULL)"
 
@@ -394,6 +414,7 @@ just = coerce
 maybe_ :: Expr s b -> (Expr s a -> Expr s b) -> Expr s (Maybe a) -> Expr s b
 maybe_ def f m = ifThenElse (isNothing_ m) def (f $ coerce m)
 
+-- | @COALESCE()@
 fromMaybe_ :: Expr s a -> Expr s (Maybe a) -> Expr s a
 fromMaybe_ (Expr def) (Expr m) = Expr $ "COALESCE(" <> m <> ", " <> def <> ")"
 
