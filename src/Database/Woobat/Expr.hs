@@ -200,11 +200,11 @@ infix 4 <., <=., >., >=.
 
 -- @GREATEST()@
 maximum_ :: NonEmpty (Expr s a) -> Expr s a
-maximum_ args = Expr $ "GREATEST(" <> mconcat (intersperse ", " (toList $ coerce <$> args)) <> ")"
+maximum_ args = Expr $ "GREATEST(" <> mconcat (intersperse ", " (coerce $ toList args)) <> ")"
 
 -- @LEAST()@
 minimum_ :: NonEmpty (Expr s a) -> Expr s a
-minimum_ args = Expr $ "LEAST(" <> mconcat (intersperse ", " (toList $ coerce <$> args)) <> ")"
+minimum_ args = Expr $ "LEAST(" <> mconcat (intersperse ", " (coerce $ toList args)) <> ")"
 -------------------------------------------------------------------------------
 
 -- * Aggregates
