@@ -5,7 +5,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Database.Woobat.Monad where
+module Database.Woobat.Monad (
+  LibPQ.Connection,
+  module Database.Woobat.Monad,
+) where
 
 import Control.Exception.Safe
 import Control.Monad.IO.Class
