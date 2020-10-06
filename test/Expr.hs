@@ -161,6 +161,17 @@ properties =
               select $ pure (value xs <> value ys, value xs @> value ys, value xs <@ value ys, arrayLength $ value xs, overlap (value xs) (value ys))
         result Hedgehog.=== [(xs <> ys, all (`List.elem` xs) ys, all (`List.elem` ys) xs, length xs, List.intersect xs ys /= [])]
     )
+  ,
+    ( "JSONB conversions"
+    , Hedgehog.property $ do
+        Some gen <- Hedgehog.forAll genSome
+        x <- Hedgehog.forAll gen
+        result <-
+          Hedgehog.evalM $
+            runPureWoobat $
+              select $ pure (fromJSON $ toJSONB $ value x)
+        result Hedgehog.=== [x]
+    )
   ]
 
 runPureWoobat :: MonadIO m => Woobat a -> m a
@@ -343,8 +354,8 @@ genSomeNonNested =
 genSomeFractional :: Hedgehog.MonadGen m => m SomeFractional
 genSomeFractional =
   Gen.element
-    [ SomeFractional $ Gen.float (Range.exponentialFloatFrom 0 (-1000000000) 1000000000)
-    , SomeFractional $ Gen.double (Range.exponentialFloatFrom 0 (-1000000000) 1000000000)
+    [ SomeFractional $ (fromIntegral :: Int16 -> Float) <$> Gen.int16 Range.linearBounded
+    , SomeFractional $ (fromIntegral :: Int32 -> Double) <$> Gen.int32 Range.linearBounded
     ]
 
 genSomeNum :: Hedgehog.MonadGen m => m SomeNum
