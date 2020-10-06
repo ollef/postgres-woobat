@@ -407,6 +407,9 @@ toJSONB (Expr e) = Expr $ "TO_JSONB(" <> e <> ")"
 nothing :: forall s a. (NonNestedMaybe a, DatabaseType a) => Expr s (Maybe a)
 nothing = value Nothing
 
+just :: (NonNestedMaybe a, DatabaseType a) => Expr s a -> Expr s (Maybe a)
+just = coerce
+
 -- | @IS NULL@
 isNothing_ :: Expr s (Maybe a) -> Expr s Bool
 isNothing_ (Expr e) = Expr $ "(" <> e <> " IS NULL)"
@@ -414,9 +417,6 @@ isNothing_ (Expr e) = Expr $ "(" <> e <> " IS NULL)"
 -- | @IS NOT NULL@
 isJust_ :: Expr s (Maybe a) -> Expr s Bool
 isJust_ (Expr e) = Expr $ "(" <> e <> " IS NOT NULL)"
-
-just :: (NonNestedMaybe a, DatabaseType a) => Expr s a -> Expr s (Maybe a)
-just = coerce
 
 maybe_ :: Expr s b -> (Expr s a -> Expr s b) -> Expr s (Maybe a) -> Expr s b
 maybe_ def f m = ifThenElse (isNothing_ m) def (f $ coerce m)
