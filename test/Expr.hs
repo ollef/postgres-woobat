@@ -111,6 +111,19 @@ properties =
 
           result Hedgehog.=== [concat [[b1 && b2, b1 || b2] | b1 <- [False, True], b2 <- [False, True]]]
     )
+  ,
+    ( "Ordering matches Haskell ordering"
+    , Hedgehog.property $ do
+        SomeNum gen <- Hedgehog.forAll genSomeNum
+        x <- Hedgehog.forAll gen
+        y <- Hedgehog.forAll gen
+        result <-
+          Hedgehog.evalM $
+            runPureWoobat $
+              select $ pure (value x <. value y, value x <=. value y, value x >. value y, value x >=. value y)
+
+        result Hedgehog.=== [(x < y, x <= y, x > y, x >= y)]
+    )
   ]
 
 runPureWoobat :: MonadIO m => Woobat a -> m a
@@ -130,13 +143,13 @@ runPureWoobat =
 -------------------------------------------------------------------------------
 
 data Some where
-  Some :: (Typeable a, Show a, Eq a, FromJSON a) => Hedgehog.Gen a -> Some
+  Some :: (Typeable a, Show a, Ord a, FromJSON a) => Hedgehog.Gen a -> Some
 
 data SomeFractional where
   SomeFractional ::
     ( Typeable a
     , Show a
-    , Eq a
+    , Ord a
     , Fractional a
     , forall s. Fractional (Expr s a)
     , FromJSON a
@@ -150,7 +163,7 @@ data SomeNum where
   SomeNum ::
     ( Typeable a
     , Show a
-    , Eq a
+    , Ord a
     , Num a
     , FromJSON a
     , NonNestedMaybe a
@@ -175,7 +188,7 @@ data SomeNonNested where
   SomeNonNested ::
     ( Typeable a
     , Show a
-    , Eq a
+    , Ord a
     , FromJSON a
     , NonNestedMaybe a
     , NonNestedArray a
@@ -187,7 +200,7 @@ data SomeNonArray where
   SomeNonArray ::
     ( Typeable a
     , Show a
-    , Eq a
+    , Ord a
     , FromJSON a
     , NonNestedArray a
     ) =>
@@ -198,7 +211,7 @@ data SomeNonMaybe where
   SomeNonMaybe ::
     ( Typeable a
     , Show a
-    , Eq a
+    , Ord a
     , FromJSON a
     , NonNestedMaybe a
     ) =>
@@ -233,7 +246,7 @@ data TableTwo a b = TableTwo
   { field1 :: a
   , field2 :: b
   }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Ord, Show, Generic)
 
 genSome :: Hedgehog.MonadGen m => m Some
 genSome =
