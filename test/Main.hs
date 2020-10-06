@@ -7,6 +7,6 @@ import qualified Hedgehog
 import qualified Hedgehog.Main as Hedgehog
 
 main :: IO ()
-main = do
+main =
   Hedgehog.defaultMain
     [Hedgehog.checkParallel $ Hedgehog.Group "Exprs" Expr.properties]
