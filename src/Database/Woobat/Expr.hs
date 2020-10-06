@@ -476,7 +476,7 @@ instance FromJSON Bool
 instance DatabaseType Int where
   typeName = "integer"
   encode = param $ Encoding.int4_int32 . fromIntegral
-  decoder = Decoder Decoding.int
+  decoder = Decoder $ (fromIntegral :: Int32 -> Int) <$> Decoding.int
 
 instance FromJSON Int
 
