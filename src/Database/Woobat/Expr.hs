@@ -279,7 +279,7 @@ arrayLength (Expr e) = Expr $ "COALESCE(ARRAY_LENGTH(" <> e <> ", 1), 0)"
 
 instance (NonNestedArray a, DatabaseType a) => DatabaseType [a] where
   typeName = typeName @a <> "[]"
-  value = array . map value
+  encode as = "ARRAY[" <> mconcat (intersperse ", " $ coerce $ value <$> as) <> "]"
   decoder = Decoder $
     Decoding.array $
       Decoding.dimensionArray
