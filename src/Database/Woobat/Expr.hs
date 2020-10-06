@@ -86,7 +86,7 @@ instance (Num a, DatabaseType a) => Num (Expr s a) where
   (-) = unsafeBinaryOperator "-"
   (*) = unsafeBinaryOperator "*"
   abs (Expr a) = Expr $ "ABS(" <> a <> ")"
-  signum (Expr a) = Expr $ "SIGN(" <> a <> ")"
+  signum (Expr a) = Expr $ "SIGN(" <> a <> ")::" <> typeName @a
 
 mod_ :: Num a => Expr s a -> Expr s a -> Expr s a
 mod_ = unsafeBinaryOperator "%"
