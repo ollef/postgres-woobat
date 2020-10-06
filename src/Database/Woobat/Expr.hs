@@ -149,7 +149,8 @@ instance
 -- | @CASE WHEN@
 if_ :: (Scope.Same s t, Scope.Same t u) => [(Expr s Bool, Expr t a)] -> Expr u a -> Expr u a
 if_ [] def = def
-if_ branches (Expr def) = Expr $ "(CASE " <> mconcat ["WHEN " <> cond <> " THEN " <> branch <> " " | (Expr cond, Expr branch) <- branches] <> "ELSE " <> def <> " END)"
+if_ branches (Expr def) =
+  Expr $ "(CASE " <> mconcat ["WHEN " <> cond <> " THEN " <> branch <> " " | (Expr cond, Expr branch) <- branches] <> "ELSE " <> def <> " END)"
 
 -------------------------------------------------------------------------------
 
