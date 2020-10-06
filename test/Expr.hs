@@ -221,6 +221,7 @@ data SomeFractional where
     , forall s. Fractional (Expr s a)
     , FromJSON a
     , NonNestedMaybe a
+    , Nullable a ~ Maybe a
     , NonNestedArray a
     ) =>
     Hedgehog.Gen a ->
@@ -234,6 +235,7 @@ data SomeNum where
     , Num a
     , FromJSON a
     , NonNestedMaybe a
+    , Nullable a ~ Maybe a
     , NonNestedArray a
     ) =>
     Hedgehog.Gen a ->
@@ -246,6 +248,7 @@ data SomeIntegral where
     , Integral a
     , FromJSON a
     , NonNestedMaybe a
+    , Nullable a ~ Maybe a
     , NonNestedArray a
     ) =>
     Hedgehog.Gen a ->
@@ -258,6 +261,7 @@ data SomeNonNested where
     , Ord a
     , FromJSON a
     , NonNestedMaybe a
+    , Nullable a ~ Maybe a
     , NonNestedArray a
     ) =>
     Hedgehog.Gen a ->
@@ -281,6 +285,7 @@ data SomeNonMaybe where
     , Ord a
     , FromJSON a
     , NonNestedMaybe a
+    , Nullable a ~ Maybe a
     ) =>
     Hedgehog.Gen a ->
     SomeNonMaybe
