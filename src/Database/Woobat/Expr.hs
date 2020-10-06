@@ -39,7 +39,6 @@ import Data.Text (Text)
 import qualified Data.Text.Lazy as Lazy
 import Data.Time (Day, DiffTime, LocalTime, TimeOfDay, TimeZone, UTCTime)
 import Data.UUID.Types (UUID)
-import Data.Word
 import qualified Database.Woobat.Raw as Raw
 import qualified Database.Woobat.Scope as Scope
 import GHC.Generics
@@ -504,30 +503,6 @@ instance DatabaseType Int64 where
   decoder = Decoder Decoding.int
 
 instance FromJSON Int64
-
--- | @int2@
-instance DatabaseType Word16 where
-  typeName = "int2"
-  encode = param Encoding.int2_word16
-  decoder = Decoder Decoding.int
-
-instance FromJSON Word16
-
--- | @int4@
-instance DatabaseType Word32 where
-  typeName = "int4"
-  encode = param Encoding.int4_word32
-  decoder = Decoder Decoding.int
-
-instance FromJSON Word32
-
--- | @int8@
-instance DatabaseType Word64 where
-  typeName = "int8"
-  encode = param Encoding.int8_word64
-  decoder = Decoder Decoding.int
-
-instance FromJSON Word64
 
 -- | @float4@
 instance DatabaseType Float where
