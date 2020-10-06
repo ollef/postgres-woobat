@@ -18,6 +18,7 @@ import qualified Data.Char as Char
 import Data.Int
 import qualified Data.List as List
 import qualified Data.List.NonEmpty as NonEmpty
+import Data.Maybe
 import Data.Scientific
 import qualified Data.Text.Lazy as Text.Lazy
 import Data.Time
@@ -172,6 +173,40 @@ properties =
               select $ pure (fromJSON $ toJSONB $ value x)
         result Hedgehog.=== [x]
     )
+  ,
+    ( "Nullable type operations"
+    , Hedgehog.property $ do
+        SomeNonMaybe nonMaybeGen <- Hedgehog.forAll genSomeNonMaybe
+        Some someGen <- Hedgehog.forAll genSome
+        mx <- Hedgehog.forAll $ Gen.maybe nonMaybeGen
+        x <- Hedgehog.forAll nonMaybeGen
+        y <- Hedgehog.forAll someGen
+        z <- Hedgehog.forAll someGen
+        result <-
+          Hedgehog.evalM $
+            runPureWoobat $
+              select $
+                pure
+                  ( nothing @_ @Int
+                  , just $ value x
+                  , isNothing_ $ value mx
+                  , isJust_ $ value mx
+                  , maybe_ (value y) (const $ value z) $ value mx
+                  , maybe_ (value x) id $ value mx
+                  , fromMaybe_ (value x) $ value mx
+                  )
+        result
+          Hedgehog.=== [
+                         ( Nothing
+                         , Just x
+                         , isNothing mx
+                         , isJust mx
+                         , maybe y (const z) mx
+                         , maybe x id mx
+                         , fromMaybe x mx
+                         )
+                       ]
+    )
   ]
 
 runPureWoobat :: MonadIO m => Woobat a -> m a
@@ -267,16 +302,12 @@ data SomeNonMaybe where
     SomeNonMaybe
 
 instance Show Some where show (Some gen) = showTypeOfGen gen
-
 instance Show SomeNum where show (SomeNum gen) = showTypeOfGen gen
-
 instance Show SomeIntegral where show (SomeIntegral gen) = showTypeOfGen gen
-
 instance Show SomeFractional where show (SomeFractional gen) = showTypeOfGen gen
-
 instance Show SomeNonNested where show (SomeNonNested gen) = showTypeOfGen gen
-
 instance Show SomeNonArray where show (SomeNonArray gen) = showTypeOfGen gen
+instance Show SomeNonMaybe where show (SomeNonMaybe gen) = showTypeOfGen gen
 
 showTypeOfGen :: forall a. Typeable a => Hedgehog.Gen a -> String
 showTypeOfGen _ = show $ typeOf (undefined :: a)
