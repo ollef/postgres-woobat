@@ -124,7 +124,6 @@ properties =
           Hedgehog.evalM $
             runPureWoobat $
               select $ pure (value x <. value y, value x <=. value y, value x >. value y, value x >=. value y)
-
         result Hedgehog.=== [(x < y, x <= y, x > y, x >= y)]
     )
   ,
@@ -137,7 +136,6 @@ properties =
           Hedgehog.evalM $
             runPureWoobat $
               select $ pure (maximum_ (value <$> x NonEmpty.:| xs), minimum_ (value <$> x NonEmpty.:| xs))
-
         result Hedgehog.=== [(maximum (x : xs), minimum (x : xs))]
     )
   ,
@@ -149,7 +147,6 @@ properties =
           Hedgehog.evalM $
             runPureWoobat $
               select $ pure (array $ value <$> xs)
-
         result Hedgehog.=== [xs]
     )
   ,
