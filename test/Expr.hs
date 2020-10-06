@@ -10,7 +10,6 @@ module Expr where
 
 import Control.Exception.Safe
 import Control.Monad.Reader
-import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Lazy as ByteString.Lazy
 import qualified Data.Char as Char
 import Data.Int
@@ -26,6 +25,7 @@ import GHC.Generics
 import qualified Hedgehog
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
+import Woobat (runWoobat)
 
 properties :: [(Hedgehog.PropertyName, Hedgehog.Property)]
 properties =
@@ -33,7 +33,7 @@ properties =
     ( "select nothing"
     , Hedgehog.withTests 1 $
         Hedgehog.property $ do
-          result <- runPureWoobat $ select $ pure ()
+          result <- runWoobat $ select $ pure ()
           result Hedgehog.=== [()]
     )
   ,
@@ -42,7 +42,7 @@ properties =
         Hedgehog.property $ do
           Some gen <- Hedgehog.forAll genSome
           x <- Hedgehog.forAll gen
-          result <- Hedgehog.evalM $ runPureWoobat $ select $ pure $ value x
+          result <- Hedgehog.evalM $ runWoobat $ select $ pure $ value x
           result Hedgehog.=== [x]
     )
   ,
@@ -50,7 +50,7 @@ properties =
     , Hedgehog.property $ do
         Some gen <- Hedgehog.forAll genSome
         x <- Hedgehog.forAll gen
-        result <- Hedgehog.evalM $ runPureWoobat $ select $ pure (value x ==. value x, value x /=. value x)
+        result <- Hedgehog.evalM $ runWoobat $ select $ pure (value x ==. value x, value x /=. value x)
         result Hedgehog.=== [(x == x, x /= x)]
     )
   ,
@@ -59,7 +59,7 @@ properties =
         Some gen <- Hedgehog.forAll genSome
         x <- Hedgehog.forAll gen
         y <- Hedgehog.forAll gen
-        result <- Hedgehog.evalM $ runPureWoobat $ select $ pure (value x ==. value y, value x /=. value y)
+        result <- Hedgehog.evalM $ runWoobat $ select $ pure (value x ==. value y, value x /=. value y)
         result Hedgehog.=== [(x == y, x /= y)]
     )
   ,
@@ -69,7 +69,7 @@ properties =
         x <- Hedgehog.forAll gen
         y <- Hedgehog.forAll gen
         when (overflows (+) x y || overflows (-) x y || overflows (*) x 5) Hedgehog.discard
-        result <- Hedgehog.evalM $ runPureWoobat $ select $ pure (value x + value y, value x - value y, value x * 5, abs (value x), signum (value x))
+        result <- Hedgehog.evalM $ runWoobat $ select $ pure (value x + value y, value x - value y, value x * 5, abs (value x), signum (value x))
         result Hedgehog.=== [(x + y, x - y, x * 5, abs x, signum x)]
     )
   ,
@@ -78,7 +78,7 @@ properties =
         SomeIntegral gen <- Hedgehog.forAll genSomeIntegral
         x <- Hedgehog.forAll gen
         y <- Hedgehog.forAll $ Gen.filter (/= 0) gen
-        result <- Hedgehog.evalM $ runPureWoobat $ select $ pure (mod_ (value x) (value y))
+        result <- Hedgehog.evalM $ runWoobat $ select $ pure (mod_ (value x) (value y))
         result Hedgehog.=== [(if x < 0 then negate else id) $ mod (abs x) (abs y)]
     )
   ,
@@ -90,14 +90,14 @@ properties =
         br1 <- Hedgehog.forAll gen
         br2 <- Hedgehog.forAll gen
         def <- Hedgehog.forAll gen
-        result <- Hedgehog.evalM $ runPureWoobat $ select $ pure (if_ [(value cond1, value br1), (value cond2, value br2)] $ value def)
+        result <- Hedgehog.evalM $ runWoobat $ select $ pure (if_ [(value cond1, value br1), (value cond2, value br2)] $ value def)
         result Hedgehog.=== [if cond1 then br1 else if cond2 then br2 else def]
     )
   ,
     ( "not_"
     , Hedgehog.withTests 1 $
         Hedgehog.property $ do
-          result <- Hedgehog.evalM $ runPureWoobat $ select $ pure (not_ true, not_ false)
+          result <- Hedgehog.evalM $ runWoobat $ select $ pure (not_ true, not_ false)
           result Hedgehog.=== [(False, True)]
     )
   ,
@@ -106,7 +106,7 @@ properties =
         Hedgehog.property $ do
           result <-
             Hedgehog.evalM $
-              runPureWoobat $
+              runWoobat $
                 select $
                   pure $
                     array $ concat [[b1 &&. b2, b1 ||. b2] | b1 <- [false, true], b2 <- [false, true]]
@@ -121,7 +121,7 @@ properties =
         y <- Hedgehog.forAll gen
         result <-
           Hedgehog.evalM $
-            runPureWoobat $
+            runWoobat $
               select $ pure (value x <. value y, value x <=. value y, value x >. value y, value x >=. value y)
         result Hedgehog.=== [(x < y, x <= y, x > y, x >= y)]
     )
@@ -133,7 +133,7 @@ properties =
         xs <- Hedgehog.forAll $ Gen.list (Range.linearFrom 0 0 10) gen
         result <-
           Hedgehog.evalM $
-            runPureWoobat $
+            runWoobat $
               select $ pure (maximum_ (value <$> x NonEmpty.:| xs), minimum_ (value <$> x NonEmpty.:| xs))
         result Hedgehog.=== [(maximum (x : xs), minimum (x : xs))]
     )
@@ -144,7 +144,7 @@ properties =
         xs <- Hedgehog.forAll $ Gen.list (Range.linearFrom 0 0 10) gen
         result <-
           Hedgehog.evalM $
-            runPureWoobat $
+            runWoobat $
               select $ pure (array $ value <$> xs)
         result Hedgehog.=== [xs]
     )
@@ -156,7 +156,7 @@ properties =
         ys <- Hedgehog.forAll $ Gen.list (Range.linearFrom 0 0 10) gen
         result <-
           Hedgehog.evalM $
-            runPureWoobat $
+            runWoobat $
               select $ pure (value xs <> value ys, value xs @> value ys, value xs <@ value ys, arrayLength $ value xs, overlap (value xs) (value ys))
         result Hedgehog.=== [(xs <> ys, all (`List.elem` xs) ys, all (`List.elem` ys) xs, length xs, List.intersect xs ys /= [])]
     )
@@ -167,7 +167,7 @@ properties =
         x <- Hedgehog.forAll gen
         result <-
           Hedgehog.evalM $
-            runPureWoobat $
+            runWoobat $
               select $ pure (fromJSON $ toJSONB $ value x)
         result Hedgehog.=== [x]
     )
@@ -182,7 +182,7 @@ properties =
         z <- Hedgehog.forAll someGen
         result <-
           Hedgehog.evalM $
-            runPureWoobat $
+            runWoobat $
               select $
                 pure
                   ( nothing @_ @Int
@@ -206,20 +206,6 @@ properties =
                        ]
     )
   ]
-
-runPureWoobat :: MonadIO m => Woobat a -> m a
-runPureWoobat =
-  liftIO
-    . runWoobatT
-      ( ByteString.intercalate
-          " "
-          [ "host=localhost"
-          , "port=5432"
-          , "user=woobat"
-          , "dbname=woobat"
-          , "client_encoding=UTF8"
-          ]
-      )
 
 -------------------------------------------------------------------------------
 

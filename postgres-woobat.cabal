@@ -68,6 +68,8 @@ test-suite postgres-woobat-test
   main-is: Main.hs
   other-modules:
       Expr
+      Select
+      Woobat
       Paths_postgres_woobat
   hs-source-dirs:
       test
