@@ -405,25 +405,25 @@ toJSONB (Expr e) = Expr $ "(TO_JSONB(ROW(" <> e <> "))->'f1')"
 -- * Nullable types
 
 -- | @null@
-nothing :: forall s a. (NonNestedMaybe a, DatabaseType a) => Expr s (Maybe a)
-nothing = value Nothing
+nothing :: forall s a. DatabaseType a => Expr s (Maybe a)
+nothing = Expr $ "null::" <> typeName @a
 
 just :: (NonNestedMaybe a, DatabaseType a) => Expr s a -> Expr s (Maybe a)
 just = coerce
 
 -- | @IS NULL@
-isNothing_ :: Expr s (Maybe a) -> Expr s Bool
-isNothing_ (Expr e) = Expr $ "(" <> e <> " IS NULL)"
+isNothing_ :: DatabaseType a => Expr s (Maybe a) -> Expr s Bool
+isNothing_ e = e ==. nothing
 
 -- | @IS NOT NULL@
-isJust_ :: Expr s (Maybe a) -> Expr s Bool
-isJust_ (Expr e) = Expr $ "(" <> e <> " IS NOT NULL)"
+isJust_ :: DatabaseType a => Expr s (Maybe a) -> Expr s Bool
+isJust_ e = e /=. nothing
 
-maybe_ :: Expr s b -> (Expr s a -> Expr s b) -> Expr s (Maybe a) -> Expr s b
+maybe_ :: (NonNestedMaybe a, DatabaseType a) => Expr s b -> (Expr s a -> Expr s b) -> Expr s (Maybe a) -> Expr s b
 maybe_ def f m = ifThenElse (isNothing_ m) def (f $ coerce m)
 
 -- | @COALESCE()@
-fromMaybe_ :: Expr s a -> Expr s (Maybe a) -> Expr s a
+fromMaybe_ :: NonNestedMaybe a => Expr s a -> Expr s (Maybe a) -> Expr s a
 fromMaybe_ (Expr def) (Expr m) = Expr $ "COALESCE(" <> m <> ", " <> def <> ")"
 
 instance (NonNestedMaybe a, DatabaseType a) => DatabaseType (Maybe a) where
