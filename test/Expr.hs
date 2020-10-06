@@ -16,6 +16,7 @@ import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Lazy as ByteString.Lazy
 import qualified Data.Char as Char
 import Data.Int
+import qualified Data.List as List
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Scientific
 import qualified Data.Text.Lazy as Text.Lazy
@@ -151,6 +152,18 @@ properties =
 
         result Hedgehog.=== [xs]
     )
+  ,
+    ( "array operations"
+    , Hedgehog.property $ do
+        SomeNonNested gen <- Hedgehog.forAll genSomeNonNested
+        xs <- Hedgehog.forAll $ Gen.list (Range.linearFrom 0 0 10) gen
+        ys <- Hedgehog.forAll $ Gen.list (Range.linearFrom 0 0 10) gen
+        result <-
+          Hedgehog.evalM $
+            runPureWoobat $
+              select $ pure (value xs <> value ys, value xs @> value ys, value xs <@ value ys, arrayLength $ value xs, overlap (value xs) (value ys))
+        result Hedgehog.=== [(xs <> ys, all (`List.elem` xs) ys, all (`List.elem` ys) xs, length xs, List.intersect xs ys /= [])]
+    )
   ]
 
 runPureWoobat :: MonadIO m => Woobat a -> m a
@@ -252,6 +265,8 @@ instance Show SomeNum where show (SomeNum gen) = showTypeOfGen gen
 instance Show SomeIntegral where show (SomeIntegral gen) = showTypeOfGen gen
 
 instance Show SomeFractional where show (SomeFractional gen) = showTypeOfGen gen
+
+instance Show SomeNonNested where show (SomeNonNested gen) = showTypeOfGen gen
 
 instance Show SomeNonArray where show (SomeNonArray gen) = showTypeOfGen gen
 
