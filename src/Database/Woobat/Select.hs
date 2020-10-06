@@ -66,8 +66,8 @@ select s =
                       put $ col + 1
                       maybeValue <- liftIO $ LibPQ.getvalue result rowNumber col
                       case (decoder, maybeValue) of
-                        (Decoder d, Just value) ->
-                          case Decoding.valueParser d value of
+                        (Decoder d, Just v) ->
+                          case Decoding.valueParser d v of
                             Left err ->
                               throwM $ Monad.DecodingError rowNumber col err
                             Right a ->
@@ -76,8 +76,8 @@ select s =
                           throwM $ Monad.UnexpectedNullError rowNumber col
                         (NullableDecoder _, Nothing) ->
                           pure Nothing
-                        (NullableDecoder d, Just value) ->
-                          case Decoding.valueParser d value of
+                        (NullableDecoder d, Just v) ->
+                          case Decoding.valueParser d v of
                             Left err ->
                               throwM $ Monad.DecodingError rowNumber col err
                             Right a ->

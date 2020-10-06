@@ -69,20 +69,20 @@ type family Nullable a where
 -- * Strings
 
 instance (IsString a, DatabaseType a) => IsString (Expr s a) where
-  fromString = encode . fromString
+  fromString = value . fromString
 
 instance Semigroup (Expr s Text) where
   (<>) = unsafeBinaryOperator "||"
 
 instance (DatabaseType a, Semigroup (Expr s a), Monoid a) => Monoid (Expr s a) where
-  mempty = encode mempty
+  mempty = value mempty
 
 -------------------------------------------------------------------------------
 
 -- * Numerics
 
 instance (Num a, DatabaseType a) => Num (Expr s a) where
-  fromInteger = encode . fromInteger
+  fromInteger = value . fromInteger
   (+) = unsafeBinaryOperator "+"
   (-) = unsafeBinaryOperator "-"
   (*) = unsafeBinaryOperator "*"
@@ -93,15 +93,15 @@ mod_ :: Num a => Expr s a -> Expr s a -> Expr s a
 mod_ = unsafeBinaryOperator "%"
 
 instance {-# OVERLAPPABLE #-} (Integral a, DatabaseType a) => Fractional (Expr s a) where
-  fromRational = encode . (truncate :: Double -> a) . fromRational
+  fromRational = value . (truncate :: Double -> a) . fromRational
   (/) = unsafeBinaryOperator "/"
 
 instance Fractional (Expr s Float) where
-  fromRational = encode . fromRational
+  fromRational = value . fromRational
   (/) = unsafeBinaryOperator "/"
 
 instance Fractional (Expr s Double) where
-  fromRational = encode . fromRational
+  fromRational = value . fromRational
   (/) = unsafeBinaryOperator "/"
 
 -------------------------------------------------------------------------------
@@ -156,10 +156,10 @@ if_ branches (Expr def) = Expr $ "(CASE " <> mconcat ["WHEN " <> cond <> " THEN 
 -- * Booleans
 
 true :: Expr s Bool
-true = encode True
+true = value True
 
 false :: Expr s Bool
-false = encode True
+false = value False
 
 -- | @NOT()@
 not_ :: Expr s Bool -> Expr s Bool
@@ -277,7 +277,7 @@ arrayLength (Expr e) = Expr $ "ARRAY_LENGTH(" <> e <> ", 1)"
 
 instance (NonNestedArray a, DatabaseType a) => DatabaseType [a] where
   typeName = typeName @a <> "[]"
-  encode = array . map encode
+  value = array . map value
   decoder = Decoder $
     Decoding.array $
       Decoding.dimensionArray
@@ -344,8 +344,8 @@ instance
   DatabaseType table
   where
   typeName = "record"
-  encode table =
-    row $ Barbie.bmapC @DatabaseType (\(Identity field) -> encode field) $ HKD.deconstruct table
+  value table =
+    row $ Barbie.bmapC @DatabaseType (\(Identity field) -> value field) $ HKD.deconstruct table
   decoder =
     Decoder $
       Decoding.composite $
@@ -386,8 +386,8 @@ class DatabaseType a => FromJSON a where
 
 instance DatabaseType (JSONB a) where
   typeName = "jsonb"
-  encode (JSONB value) =
-    Expr $ Raw.param (Builder.builderBytes $ Encoding.jsonb_ast value) <> "::" <> typeName @(JSONB a)
+  encode (JSONB json) =
+    Raw.param (Builder.builderBytes $ Encoding.jsonb_ast json)
   decoder =
     Decoder $ JSONB <$> Decoding.jsonb_ast
 
@@ -402,7 +402,7 @@ toJSONB (Expr e) = Expr $ "TO_JSONB(" <> e <> ")"
 
 -- | @null@
 nothing :: forall s a. (NonNestedMaybe a, DatabaseType a) => Expr s (Maybe a)
-nothing = Expr $ "null::" <> typeName @a
+nothing = value Nothing
 
 -- | @IS NULL@
 isNothing_ :: Expr s (Maybe a) -> Expr s Bool
@@ -424,8 +424,8 @@ fromMaybe_ (Expr def) (Expr m) = Expr $ "COALESCE(" <> m <> ", " <> def <> ")"
 
 instance (NonNestedMaybe a, DatabaseType a) => DatabaseType (Maybe a) where
   typeName = typeName @a
-  encode Nothing = nothing
-  encode (Just a) = just $ encode a
+  encode Nothing = "null"
+  encode (Just a) = encode a
   decoder = case decoder of
     Decoder d -> NullableDecoder d
     NullableDecoder _ -> impossible
@@ -451,9 +451,13 @@ type family NonNestedMaybe a :: Constraint where
 
 -- | Types with a corresponding database type
 class DatabaseType a where
+  value :: a -> Expr s a
+  value a = Expr $ encode a <> "::" <> typeName @a
   typeName :: Raw.SQL
-  encode :: a -> Expr s a
+  encode :: a -> Raw.SQL
+  encode = coerce . value
   decoder :: Decoder a
+  {-# MINIMAL (value | encode), typeName, decoder #-}
 
 data Decoder a where
   Decoder :: Decoding.Value a -> Decoder a
@@ -659,9 +663,9 @@ instance FromJSON DiffTime where
 
 -- * Low-level utilities
 
-param :: forall s a. DatabaseType a => (a -> Encoding) -> a -> Expr s a
-param encoding a =
-  Expr $ Raw.param (Builder.builderBytes $ encoding a) <> "::" <> typeName @a
+param :: forall a. (a -> Encoding) -> a -> Raw.SQL
+param encoding =
+  Raw.param . Builder.builderBytes . encoding
 
 unsafeBinaryOperator :: Scope.Same s t => Raw.SQL -> Expr s a -> Expr t b -> Expr s c
 unsafeBinaryOperator name (Expr x) (Expr y) = Expr $ "(" <> x <> " " <> name <> " " <> y <> ")"

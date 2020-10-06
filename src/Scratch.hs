@@ -60,7 +60,7 @@ ppp =
 descriptionQuery :: Select s (Expr s Text)
 descriptionQuery = do
   p <- from profile
-  where_ $ row p ==. encode ppp
+  where_ $ row p ==. value ppp
   where_ $ p ^. #name ==. "Olle"
   pure $ p ^. #description
 
