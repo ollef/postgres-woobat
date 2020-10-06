@@ -61,50 +61,14 @@ properties =
         result Hedgehog.=== [(x == y, x /= y)]
     )
   ,
-    ( "database addition matches Haskell addition"
+    ( "database Num matches Haskell Num"
     , Hedgehog.property $ do
         SomeIntegral gen <- Hedgehog.forAll genSomeIntegral
         x <- Hedgehog.forAll gen
         y <- Hedgehog.forAll gen
-        when (overflows (+) x y) Hedgehog.discard
-        result <- Hedgehog.evalM $ runPureWoobat $ select $ pure (value x + value y)
-        result Hedgehog.=== [x + y]
-    )
-  ,
-    ( "database subtraction matches Haskell subtraction"
-    , Hedgehog.property $ do
-        SomeIntegral gen <- Hedgehog.forAll genSomeIntegral
-        x <- Hedgehog.forAll gen
-        y <- Hedgehog.forAll gen
-        when (overflows (-) x y) Hedgehog.discard
-        result <- Hedgehog.evalM $ runPureWoobat $ select $ pure (value x - value y)
-        result Hedgehog.=== [x - y]
-    )
-  ,
-    ( "database multiplication matches Haskell multiplication"
-    , Hedgehog.property $ do
-        SomeIntegral gen <- Hedgehog.forAll genSomeIntegral
-        x <- Hedgehog.forAll gen
-        when (overflows (*) x 5) Hedgehog.discard
-        result <- Hedgehog.evalM $ runPureWoobat $ select $ pure (value x * value 5)
-        result Hedgehog.=== [x * 5]
-    )
-  ,
-    ( "database division matches Haskell division"
-    , Hedgehog.property $ do
-        SomeFractional gen <- Hedgehog.forAll genSomeFractional
-        x <- Hedgehog.forAll gen
-        y <- Hedgehog.forAll $ Gen.filter (/= 0) gen
-        result <- Hedgehog.evalM $ runPureWoobat $ select $ pure (value x / value y)
-        result Hedgehog.=== [x / y]
-    )
-  ,
-    ( "database abs and signum match Haskell abs and signum"
-    , Hedgehog.property $ do
-        SomeIntegral gen <- Hedgehog.forAll genSomeIntegral
-        x <- Hedgehog.forAll gen
-        result <- Hedgehog.evalM $ runPureWoobat $ select $ pure (abs $ value x, signum $ value x)
-        result Hedgehog.=== [(abs x, signum x)]
+        when (overflows (+) x y || overflows (-) x y || overflows (*) x 5) Hedgehog.discard
+        result <- Hedgehog.evalM $ runPureWoobat $ select $ pure (value x + value y, value x - value y, value x * 5, abs (value x), signum (value x))
+        result Hedgehog.=== [(x + y, x - y, x * 5, abs x, signum x)]
     )
   ,
     ( "`mod_ x` matches `(if x < 0 then negate else id) $ mod (abs x) (abs y)`"
