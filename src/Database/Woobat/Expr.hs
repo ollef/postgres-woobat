@@ -275,7 +275,7 @@ overlap :: Expr s [a] -> Expr s [a] -> Expr s Bool
 overlap = unsafeBinaryOperator "&&"
 
 arrayLength :: Expr s [a] -> Expr s Int
-arrayLength (Expr e) = Expr $ "ARRAY_LENGTH(" <> e <> ", 1)"
+arrayLength (Expr e) = Expr $ "COALESCE(ARRAY_LENGTH(" <> e <> ", 1), 0)"
 
 instance (NonNestedArray a, DatabaseType a) => DatabaseType [a] where
   typeName = typeName @a <> "[]"
