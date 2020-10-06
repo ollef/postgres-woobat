@@ -4,6 +4,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeApplications #-}
 
@@ -232,29 +233,18 @@ data SomeNonMaybe where
     Hedgehog.Gen a ->
     SomeNonMaybe
 
-instance Show Some where
-  show (Some gena) = show (typeOf (unGen gena))
-    where
-      unGen :: Hedgehog.Gen a -> a
-      unGen = undefined
+instance Show Some where show (Some gen) = showTypeOfGen gen
 
-instance Show SomeNum where
-  show (SomeNum gena) = show (typeOf (unGen gena))
-    where
-      unGen :: Hedgehog.Gen a -> a
-      unGen = undefined
+instance Show SomeNum where show (SomeNum gen) = showTypeOfGen gen
 
-instance Show SomeIntegral where
-  show (SomeIntegral gena) = show (typeOf (unGen gena))
-    where
-      unGen :: Hedgehog.Gen a -> a
-      unGen = undefined
+instance Show SomeIntegral where show (SomeIntegral gen) = showTypeOfGen gen
 
-instance Show SomeFractional where
-  show (SomeFractional gena) = show (typeOf (unGen gena))
-    where
-      unGen :: Hedgehog.Gen a -> a
-      unGen = undefined
+instance Show SomeFractional where show (SomeFractional gen) = showTypeOfGen gen
+
+instance Show SomeNonArray where show (SomeNonArray gen) = showTypeOfGen gen
+
+showTypeOfGen :: forall a. Typeable a => Hedgehog.Gen a -> String
+showTypeOfGen _ = show $ typeOf (undefined :: a)
 
 data TableTwo a b = TableTwo
   { field1 :: a
