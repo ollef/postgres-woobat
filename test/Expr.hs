@@ -33,7 +33,7 @@ properties =
     ( "select nothing"
     , Hedgehog.withTests 1 $
         Hedgehog.property $ do
-          result <- runWoobat $ select $ pure ()
+          result <- Hedgehog.evalM $ runWoobat $ select $ pure ()
           result Hedgehog.=== [()]
     )
   ,
