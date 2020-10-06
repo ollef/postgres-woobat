@@ -398,7 +398,8 @@ instance FromJSON (JSONB a) where
   fromJSON = coerce
 
 toJSONB :: Expr s a -> Expr s (JSONB a)
-toJSONB (Expr e) = Expr $ "TO_JSONB(" <> e <> ")"
+-- The row here means that we get a non-null JSONB containing null for a null input instead of a null JSONB
+toJSONB (Expr e) = Expr $ "(TO_JSONB(ROW(" <> e <> "))->'f1')"
 -------------------------------------------------------------------------------
 
 -- * Nullable types
