@@ -77,9 +77,9 @@ instance Same s t => Barbie (Expr s) (Expr t a) where
   toBarbie = Singleton
   fromBarbie (Singleton x) = x
 
-instance Barbie f (NullableF f a) where
-  type ToBarbie f (NullableF f a) = Singleton (Nullable a)
-  type FromBarbie f (NullableF f a) g = g (Nullable a)
+instance Same s t => Barbie (Expr s) (NullableF (Expr t) a) where
+  type ToBarbie (Expr s) (NullableF (Expr t) a) = Singleton (Nullable a)
+  type FromBarbie (Expr s) (NullableF (Expr t) a) g = g (Nullable a)
   toBarbie (NullableF x) = Singleton x
   fromBarbie (Singleton x) = x
 
