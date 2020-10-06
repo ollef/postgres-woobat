@@ -303,6 +303,7 @@ type family NonNestedArray a :: Constraint where
         )
     , Impossible
     )
+  NonNestedArray (Maybe a) = NonNestedArray a
   NonNestedArray _ = ()
 
 -------------------------------------------------------------------------------
