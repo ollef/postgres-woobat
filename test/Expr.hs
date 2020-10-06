@@ -15,6 +15,7 @@ import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Lazy as ByteString.Lazy
 import qualified Data.Char as Char
 import Data.Int
+import qualified Data.List.NonEmpty as NonEmpty
 import Data.Scientific
 import qualified Data.Text.Lazy as Text.Lazy
 import Data.Time
@@ -123,6 +124,19 @@ properties =
               select $ pure (value x <. value y, value x <=. value y, value x >. value y, value x >=. value y)
 
         result Hedgehog.=== [(x < y, x <= y, x > y, x >= y)]
+    )
+  ,
+    ( "maximum_ and minimum_"
+    , Hedgehog.property $ do
+        SomeNum gen <- Hedgehog.forAll genSomeNum
+        x <- Hedgehog.forAll gen
+        xs <- Hedgehog.forAll $ Gen.list (Range.linearFrom 0 0 10) gen
+        result <-
+          Hedgehog.evalM $
+            runPureWoobat $
+              select $ pure (maximum_ (value <$> x NonEmpty.:| xs), minimum_ (value <$> x NonEmpty.:| xs))
+
+        result Hedgehog.=== [(maximum (x : xs), minimum (x : xs))]
     )
   ]
 
