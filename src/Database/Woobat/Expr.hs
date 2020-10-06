@@ -331,7 +331,7 @@ fromJSONRow (Expr json) =
     go (Const ()) = do
       i <- get
       put $! i + 1
-      return $ fromJSON $ Expr $ json <> "->'f" <> fromString (show i) <> "'"
+      return $ fromJSON $ Expr $ "(" <> json <> "->'f" <> fromString (show i) <> "')"
 
 instance
   {-# OVERLAPPABLE #-}
