@@ -167,7 +167,8 @@ not_ :: Expr s Bool -> Expr s Bool
 not_ (Expr e) = Expr $ "NOT(" <> e <> ")"
 
 ifThenElse :: (Scope.Same s t, Scope.Same t u) => Expr s Bool -> Expr t a -> Expr u a -> Expr s a
-ifThenElse cond t f = if_ [(cond, t)] f
+ifThenElse cond t f =
+  if_ [(cond, t)] f
 
 -- | @AND@
 (&&.) :: Scope.Same s t => Expr s Bool -> Expr t Bool -> Expr s Bool
