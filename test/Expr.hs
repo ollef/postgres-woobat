@@ -139,6 +139,18 @@ properties =
 
         result Hedgehog.=== [(maximum (x : xs), minimum (x : xs))]
     )
+  ,
+    ( "array"
+    , Hedgehog.property $ do
+        SomeNonArray gen <- Hedgehog.forAll genSomeNonArray
+        xs <- Hedgehog.forAll $ Gen.list (Range.linearFrom 0 0 10) gen
+        result <-
+          Hedgehog.evalM $
+            runPureWoobat $
+              select $ pure (array $ value <$> xs)
+
+        result Hedgehog.=== [xs]
+    )
   ]
 
 runPureWoobat :: MonadIO m => Woobat a -> m a
