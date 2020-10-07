@@ -23,7 +23,8 @@ import Data.Generic.HKD (HKD)
 import qualified Data.Generic.HKD as HKD
 import qualified Data.Text.Encoding as Text
 import qualified Database.PostgreSQL.LibPQ as LibPQ
-import Database.Woobat.Barbie
+import Database.Woobat.Barbie hiding (result)
+import qualified Database.Woobat.Barbie
 import qualified Database.Woobat.Compiler as Compiler
 import Database.Woobat.Expr
 import qualified Database.Woobat.Monad as Monad
@@ -40,10 +41,10 @@ select ::
   , Barbie (Expr s) a
   , HKD.AllB DatabaseType (ToBarbie (Expr s) a)
   , HKD.ConstraintsB (ToBarbie (Expr s) a)
-  , Result (FromBarbie (Expr s) a Identity)
+  , Resultable (FromBarbie (Expr s) a Identity)
   ) =>
   Select s a ->
-  m [ToResult (FromBarbie (Expr s) a Identity)]
+  m [Result (FromBarbie (Expr s) a Identity)]
 select s =
   Monad.withConnection $ \connection -> liftIO $ do
     let (rawSQL, resultsBarbie) = compile s
@@ -85,7 +86,7 @@ select s =
 
                 barbieRow :: ToBarbie (Expr s) a Identity <-
                   flip evalStateT 0 $ Barbie.btraverseC @DatabaseType go resultsBarbie
-                pure $ toResult $ fromBarbie @(Expr s) @a barbieRow
+                pure $ Database.Woobat.Barbie.result $ fromBarbie @(Expr s) @a barbieRow
         case status of
           LibPQ.EmptyQuery -> onError
           LibPQ.CommandOk -> onError
