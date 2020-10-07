@@ -10,6 +10,7 @@ import qualified ByteString.StrictBuilder as Builder
 import Control.Monad
 import Data.ByteString (ByteString)
 import Data.Foldable
+import Data.List (intersperse)
 import Data.Sequence (Seq)
 import qualified Data.Sequence as Seq
 import Data.String
@@ -56,6 +57,10 @@ param = SQL . pure . Param
 
 nullParam :: SQL
 nullParam = SQL $ pure NullParam
+
+separateBy :: (Foldable f, Monoid a) => a -> f a -> a
+separateBy separator =
+  mconcat . intersperse separator . toList
 
 -------------------------------------------------------------------------------
 

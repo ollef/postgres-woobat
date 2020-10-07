@@ -31,7 +31,6 @@ import Data.Generic.HKD (HKD)
 import qualified Data.Generic.HKD as HKD
 import Data.Int
 import Data.Kind (Constraint)
-import Data.List
 import Data.List.NonEmpty (NonEmpty)
 import Data.Scientific
 import Data.String (IsString, fromString)
@@ -202,11 +201,11 @@ infix 4 <., <=., >., >=.
 
 -- @GREATEST()@
 maximum_ :: NonEmpty (Expr s a) -> Expr s a
-maximum_ args = Expr $ "GREATEST(" <> mconcat (intersperse ", " (coerce $ toList args)) <> ")"
+maximum_ args = Expr $ "GREATEST(" <> Raw.separateBy ", " (coerce <$> toList args) <> ")"
 
 -- @LEAST()@
 minimum_ :: NonEmpty (Expr s a) -> Expr s a
-minimum_ args = Expr $ "LEAST(" <> mconcat (intersperse ", " (coerce $ toList args)) <> ")"
+minimum_ args = Expr $ "LEAST(" <> Raw.separateBy ", " (coerce <$> toList args) <> ")"
 -------------------------------------------------------------------------------
 
 -- * Aggregates
@@ -257,7 +256,7 @@ jsonAggregate (Expr e) = AggregateExpr $ "JSONB_AGG(" <> e <> ")"
 array :: forall s a. (NonNestedArray a, DatabaseType a) => [Expr s a] -> Expr s [a]
 array exprs =
   Expr $
-    "ARRAY[" <> mconcat (intersperse ", " $ coerce exprs) <> "]::" <> typeName @[a]
+    "ARRAY[" <> Raw.separateBy ", " (coerce <$> exprs) <> "]::" <> typeName @[a]
 
 instance Semigroup (Expr s [a]) where
   (<>) = unsafeBinaryOperator "||"
@@ -279,7 +278,7 @@ arrayLength (Expr e) = Expr $ "COALESCE(ARRAY_LENGTH(" <> e <> ", 1), 0)"
 
 instance (NonNestedArray a, DatabaseType a) => DatabaseType [a] where
   typeName = typeName @a <> "[]"
-  encode as = "ARRAY[" <> mconcat (intersperse ", " $ coerce $ value <$> as) <> "]"
+  encode as = "ARRAY[" <> Raw.separateBy ", " (coerce . value <$> as) <> "]"
   decoder = Decoder $
     Decoding.array $
       Decoding.dimensionArray
@@ -312,7 +311,7 @@ type family NonNestedArray a :: Constraint where
 
 row :: HKD.TraversableB (HKD table) => HKD table (Expr s) -> Expr s table
 row table =
-  Expr $ "ROW(" <> mconcat (intersperse ", " $ Barbie.bfoldMap (\(Expr e) -> [e]) table) <> ")"
+  Expr $ "ROW(" <> Raw.separateBy ", " (Barbie.bfoldMap (\(Expr e) -> [e]) table) <> ")"
 
 fromJSONRow ::
   ( Generic table

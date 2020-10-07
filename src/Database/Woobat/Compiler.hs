@@ -5,13 +5,11 @@
 module Database.Woobat.Compiler where
 
 import Data.ByteString (ByteString)
-import Data.Foldable
-import Data.List
 import qualified Database.Woobat.Raw as Raw
 
 compileSelect :: [Raw.SQL] -> Raw.Select -> Raw.SQL
 compileSelect exprs Raw.Select {from, wheres, groupBys, orderBys} =
-  "SELECT " <> separateBy ", " exprs
+  "SELECT " <> Raw.separateBy ", " exprs
     <> ( case Raw.unitView from of
           Right () -> mempty
           Left from' -> " FROM " <> compileFrom from'
@@ -41,22 +39,18 @@ compileFrom from =
 
 compileWheres :: Raw.Tsil Raw.SQL -> Raw.SQL
 compileWheres Raw.Empty = mempty
-compileWheres wheres = " WHERE " <> separateBy " AND " wheres
+compileWheres wheres = " WHERE " <> Raw.separateBy " AND " wheres
 
 compileGroupBys :: Raw.Tsil Raw.SQL -> Raw.SQL
 compileGroupBys Raw.Empty = mempty
-compileGroupBys groupBys = " GROUP BY " <> separateBy ", " groupBys
+compileGroupBys groupBys = " GROUP BY " <> Raw.separateBy ", " groupBys
 
 compileOrderBys :: Raw.Tsil (Raw.SQL, Raw.Order) -> Raw.SQL
 compileOrderBys Raw.Empty = mempty
 compileOrderBys orderBys =
   " ORDER BY "
-    <> separateBy ", " ((\(expr, order) -> expr <> " " <> compileOrder order) <$> orderBys)
+    <> Raw.separateBy ", " ((\(expr, order) -> expr <> " " <> compileOrder order) <$> orderBys)
 
 compileOrder :: Raw.Order -> Raw.SQL
 compileOrder Raw.Ascending = "ASC"
 compileOrder Raw.Descending = "DESC"
-
-separateBy :: (Foldable f, Monoid a) => a -> f a -> a
-separateBy separator =
-  mconcat . intersperse separator . toList
