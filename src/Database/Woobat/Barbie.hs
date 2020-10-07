@@ -24,6 +24,8 @@ import Database.Woobat.Expr
 import Database.Woobat.Scope
 import GHC.Generics
 
+-------------------------------------------------------------------------------
+
 newtype Singleton a f = Singleton (f a)
   deriving (Generic)
 
@@ -32,6 +34,8 @@ instance HKD.FunctorB (Singleton a)
 instance HKD.TraversableB (Singleton a)
 
 instance HKD.ConstraintsB (Singleton a)
+
+-------------------------------------------------------------------------------
 
 newtype NullableHKD hkd f = NullableHKD (hkd (NullableF f))
 
@@ -58,6 +62,8 @@ instance HKD.FunctorB hkd => HKD.FunctorB (NullableHKD hkd) where
 instance HKD.TraversableB hkd => HKD.TraversableB (NullableHKD hkd) where
   btraverse f (NullableHKD hkd) =
     NullableHKD <$> HKD.btraverse (\(NullableF x) -> NullableF <$> f x) hkd
+
+-------------------------------------------------------------------------------
 
 class HKD.TraversableB (ToBarbie f t) => Barbie (f :: * -> *) t where
   type ToBarbie f t :: (* -> *) -> *
