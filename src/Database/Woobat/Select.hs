@@ -1,9 +1,14 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 module Database.Woobat.Select (
@@ -237,11 +242,28 @@ groupBy (Expr expr) = Select $ do
   addSelect mempty {Raw.groupBys = pure expr}
   pure $ AggregateExpr expr
 
-unnest :: (Same s t, Same t u) => Expr s [a] -> Select t (Expr u a)
-unnest (Expr arr) = Select $ do
-  alias <- freshName "unnested_array"
-  addSelect mempty {Raw.from = Raw.Set ("UNNEST(" <> arr <> ")") alias}
-  pure $ Expr $ Raw.code alias
+-- unnest :: forall s t u a. (Same s t, Same t u, Unnestable a) => Expr s [a] -> Select t (Unnested u a)
+-- unnest (Expr arr) = Select $ do
+--   (returnRow, result) <- unnested @a
+--   addSelect mempty {Raw.from = Raw.Set ("UNNEST(" <> arr <> ")") returnRow}
+--   pure result
+
+-- class Unnestable a where
+--   type Unnested s a
+--   type Unnested s a = Expr s a
+--   unnested :: State SelectState (Raw.SQL, Unnested s a)
+--   default unnested :: (Unnested s a ~ Expr s a) => State SelectState (Raw.SQL, Unnested s a)
+--   unnested = do
+--     alias <- Raw.code <$> freshName "unnested"
+--     pure (alias, Expr alias)
+
+-- instance {-# OVERLAPPING #-} HKD.AllB UnnestableRowElement (HKD table) => Unnestable table where
+--   type Unnested s table = HKD table (Expr s)
+--   unnested _ = do
+--     rowAlias <- freshName "unnested"
+--     undefined
+
+-- class Unnestable a => UnnestableRowElement a
 
 values :: forall s t u a. (Same s t, Same t u, Barbie (Expr (Inner s)) a) => NonEmpty a -> Select t (Outer s a)
 values rows = Select $ do
