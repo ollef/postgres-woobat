@@ -101,9 +101,9 @@ data Order = Ascending | Descending
 data From unitAlias
   = Unit !unitAlias
   | Table !ByteString !ByteString
-  | Set !SQL !ByteString
+  | Set !SQL !SQL
   | Subquery [(SQL, ByteString)] !Select !ByteString
-  | CrossJoin (From ByteString) (Seq (From ByteString))
+  | CrossJoin (From ByteString) (From ByteString)
   | LeftJoin !(From ByteString) !SQL !(From ByteString)
   deriving (Functor, Foldable, Traversable, Show)
 
@@ -119,7 +119,7 @@ unitView (Unit alias) = Right alias
 unitView (Table table alias) = Left (Table table alias)
 unitView (Set expr alias) = Left (Set expr alias)
 unitView (Subquery results select alias) = Left (Subquery results select alias)
-unitView (CrossJoin from_ froms) = Left (CrossJoin from_ froms)
+unitView (CrossJoin from1 from2) = Left (CrossJoin from1 from2)
 unitView (LeftJoin from1 on from2) = Left (LeftJoin from1 on from2)
 
 instance Semigroup (From unitAlias) where
@@ -127,10 +127,7 @@ instance Semigroup (From unitAlias) where
     case (unitView outerFrom1, unitView outerFrom2) of
       (Right _, _) -> outerFrom2
       (_, Right _) -> outerFrom1
-      (Left (CrossJoin from1 froms1), Left (CrossJoin from2 froms2)) -> CrossJoin from1 (froms1 <> pure from2 <> froms2)
-      (Left (CrossJoin from1 froms), Left from2) -> CrossJoin from1 (froms Seq.:|> from2)
-      (Left from1, Left (CrossJoin from2 froms)) -> CrossJoin from1 (from2 Seq.:<| froms)
-      (Left from1, Left from2) -> CrossJoin from1 (pure from2)
+      (Left from1, Left from2) -> CrossJoin from1 from2
 
 instance Monoid (From ()) where
   mempty = Unit ()

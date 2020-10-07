@@ -34,8 +34,8 @@ compileFrom from =
       expr <> " AS " <> Raw.code alias
     Raw.Subquery exprAliases select alias ->
       "(" <> compileSelect [expr <> " AS " <> Raw.code columnAlias | (expr, columnAlias) <- exprAliases] select <> ") AS " <> Raw.code alias
-    Raw.CrossJoin from_ froms ->
-      separateBy ", " $ compileFrom <$> from_ : toList froms
+    Raw.CrossJoin left right ->
+      compileFrom left <> " CROSS JOIN " <> compileFrom right
     Raw.LeftJoin left on right ->
       compileFrom left <> " LEFT JOIN " <> compileFrom right <> " ON " <> on
 
