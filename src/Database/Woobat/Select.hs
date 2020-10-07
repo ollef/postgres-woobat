@@ -36,15 +36,15 @@ import qualified Database.Woobat.Table as Table
 import qualified PostgreSQL.Binary.Decoding as Decoding
 
 select ::
-  forall s a m.
+  forall a m.
   ( Monad.MonadWoobat m
-  , Barbie (Expr s) a
-  , HKD.AllB DatabaseType (ToBarbie (Expr s) a)
-  , HKD.ConstraintsB (ToBarbie (Expr s) a)
-  , Resultable (FromBarbie (Expr s) a Identity)
+  , Barbie (Expr ()) a
+  , HKD.AllB DatabaseType (ToBarbie (Expr ()) a)
+  , HKD.ConstraintsB (ToBarbie (Expr ()) a)
+  , Resultable (FromBarbie (Expr ()) a Identity)
   ) =>
-  Select s a ->
-  m [Result (FromBarbie (Expr s) a Identity)]
+  Select () a ->
+  m [Result (FromBarbie (Expr ()) a Identity)]
 select s =
   Monad.withConnection $ \connection -> liftIO $ do
     let (rawSQL, resultsBarbie) = compile s
@@ -61,7 +61,7 @@ select s =
             onResult = do
               rowCount <- LibPQ.ntuples result
               forM [0 .. rowCount - 1] $ \rowNumber -> do
-                let go :: DatabaseType x => Expr s x -> StateT LibPQ.Column IO (Identity x)
+                let go :: DatabaseType x => Expr () x -> StateT LibPQ.Column IO (Identity x)
                     go _ = fmap Identity $ do
                       col <- get
                       put $ col + 1
@@ -84,9 +84,9 @@ select s =
                             Right a ->
                               pure $ Just a
 
-                barbieRow :: ToBarbie (Expr s) a Identity <-
+                barbieRow :: ToBarbie (Expr ()) a Identity <-
                   flip evalStateT 0 $ Barbie.btraverseC @DatabaseType go resultsBarbie
-                pure $ Database.Woobat.Barbie.result $ fromBarbie @(Expr s) @a barbieRow
+                pure $ Database.Woobat.Barbie.result $ fromBarbie @(Expr ()) @a barbieRow
         case status of
           LibPQ.EmptyQuery -> onError
           LibPQ.CommandOk -> onError
@@ -99,10 +99,10 @@ select s =
           LibPQ.SingleTuple -> onResult
           LibPQ.TuplesOk -> onResult
 
-compile :: forall s a. Barbie (Expr s) a => Select s a -> (Raw.SQL, ToBarbie (Expr s) a (Expr s))
+compile :: forall a. Barbie (Expr ()) a => Select () a -> (Raw.SQL, ToBarbie (Expr ()) a (Expr ()))
 compile s = do
   let (results, st) = run mempty s
-      resultsBarbie :: ToBarbie (Expr s) a (Expr s)
+      resultsBarbie :: ToBarbie (Expr ()) a (Expr ())
       resultsBarbie = toBarbie results
       sql = Compiler.compileSelect (Barbie.bfoldMap (\(Expr e) -> [e]) resultsBarbie) $ rawSelect st
   (sql, resultsBarbie)
