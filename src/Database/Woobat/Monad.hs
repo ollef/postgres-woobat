@@ -38,14 +38,10 @@ data Environment = Environment
   , ongoingTransaction :: !(Maybe LibPQ.Connection)
   }
 
-data ConnectionError = ConnectionError LibPQ.ConnStatus
-  deriving (Show, Exception)
-
-data ExecutionError = ExecutionError LibPQ.ExecStatus (Maybe ByteString)
-  deriving (Show, Exception)
-
-data DecodingError
-  = DecodingError !LibPQ.Row !LibPQ.Column !Text
+data Error
+  = ConnectionError LibPQ.ConnStatus
+  | ExecutionError LibPQ.ExecStatus (Maybe ByteString)
+  | DecodingError !LibPQ.Row !LibPQ.Column !Text
   | UnexpectedNullError !LibPQ.Row !LibPQ.Column
   deriving (Show, Exception)
 
