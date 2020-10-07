@@ -21,6 +21,8 @@ import Data.Functor.Identity
 import Data.Functor.Product
 import Data.Generic.HKD (HKD)
 import qualified Data.Generic.HKD as HKD
+import Data.List.NonEmpty (NonEmpty)
+import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Text.Encoding as Text
 import qualified Database.PostgreSQL.LibPQ as LibPQ
 import Database.Woobat.Barbie hiding (result)
@@ -240,3 +242,29 @@ unnest (Expr arr) = Select $ do
   alias <- freshName "unnested_array"
   addSelect mempty {Raw.from = Raw.Set ("UNNEST(" <> arr <> ")") alias}
   pure $ Expr $ Raw.code alias
+
+values :: forall s t u a. (Same s t, Same t u, Barbie (Expr (Inner s)) a) => NonEmpty a -> Select t (Outer s a)
+values rows = Select $ do
+  let firstBarbieRow :: ToBarbie (Expr (Inner s)) a (Expr (Inner s))
+      barbieRows :: NonEmpty (ToBarbie (Expr (Inner s)) a (Expr (Inner s)))
+      barbieRows@(firstBarbieRow NonEmpty.:| _) = toBarbie <$> rows
+  rowAlias <- Raw.code <$> freshName "values"
+  aliasesBarbie <- Barbie.btraverse (\_ -> Const <$> freshName "col") firstBarbieRow
+  let aliases = Barbie.bfoldMap (\(Const a) -> [Raw.code a]) aliasesBarbie
+  addSelect
+    mempty
+      { Raw.from =
+          Raw.Set
+            ( "(VALUES "
+                <> Raw.separateBy ", " ((\row_ -> "(" <> Raw.separateBy ", " (Barbie.bfoldMap (\(Expr e) -> [e]) row_) <> ")") <$> barbieRows)
+                <> ")"
+            )
+            ( rowAlias
+                <> "("
+                <> Raw.separateBy ", " aliases
+                <> ")"
+            )
+      }
+  let resultBarbie :: ToBarbie (Expr (Inner s)) a (Expr (Inner s))
+      resultBarbie = Barbie.bmap (\(Const alias) -> Expr $ Raw.code alias) aliasesBarbie
+  pure $ outer @s @a resultBarbie

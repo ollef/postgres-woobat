@@ -28,8 +28,8 @@ compileFrom from =
         Raw.code name
       | otherwise ->
         Raw.code name <> " AS " <> Raw.code alias
-    Raw.Set expr alias ->
-      expr <> " AS " <> Raw.code alias
+    Raw.Set expr returnRow ->
+      expr <> " AS " <> returnRow
     Raw.Subquery exprAliases select alias ->
       "(" <> compileSelect [expr <> " AS " <> Raw.code columnAlias | (expr, columnAlias) <- exprAliases] select <> ") AS " <> Raw.code alias
     Raw.CrossJoin left right ->
