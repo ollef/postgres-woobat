@@ -145,8 +145,8 @@ leftJoin ::
   forall a s t u.
   (Barbie (Expr (Inner s)) a) =>
   Select (Inner s) a ->
-  (ToOuter s a -> Expr t Bool) ->
-  Select u (ToLeft s a)
+  (Outer s a -> Expr t Bool) ->
+  Select u (Left s a)
 leftJoin (Select sel) on = Select $ do
   (innerResults, rightSelect) <- subquery sel
   let innerResultsBarbie :: ToBarbie (Expr (Inner s)) a (Expr (Inner s))
@@ -156,7 +156,7 @@ leftJoin (Select sel) on = Select $ do
   case rightSelect of
     Raw.Select rightFrom Raw.Empty Raw.Empty Raw.Empty -> do
       let Expr rawOn =
-            on $ toOuter @s @a innerResultsBarbie
+            on $ outer @s @a innerResultsBarbie
       rightFrom' <- mapM (\() -> freshName "unit") rightFrom
       modify $ \s ->
         s
@@ -166,7 +166,7 @@ leftJoin (Select sel) on = Select $ do
                     Raw.LeftJoin leftFrom' rawOn rightFrom'
                 }
           }
-      return $ toLeft @s @a innerResultsBarbie
+      return $ left @s @a innerResultsBarbie
     _ -> do
       alias <- freshName "subquery"
       namedResults :: ToBarbie (Expr (Inner s)) a (Product (Const ByteString) (Expr (Inner s))) <-
@@ -180,7 +180,7 @@ leftJoin (Select sel) on = Select $ do
           outerResults =
             HKD.bmap (\(Pair (Const name) _) -> Expr $ Raw.code $ alias <> "." <> name) namedResults
           Expr rawOn =
-            on $ toOuter @s @a outerResults
+            on $ outer @s @a outerResults
       modify $ \s ->
         s
           { rawSelect =
@@ -196,13 +196,13 @@ leftJoin (Select sel) on = Select $ do
                       )
                 }
           }
-      return $ toLeft @s @a outerResults
+      return $ left @s @a outerResults
 
 aggregate ::
   forall a s t.
   (Barbie (AggregateExpr (Inner s)) a, Same s t) =>
   Select (Inner s) a ->
-  Select t (FromAggregate s a)
+  Select t (Aggregated s a)
 aggregate (Select sel) = Select $ do
   (innerResults, aggSelect) <- subquery sel
   alias <- freshName "subquery"
@@ -224,7 +224,7 @@ aggregate (Select sel) = Select $ do
             aggSelect
             alias
       }
-  return $ fromAggregate @s @a outerResults
+  return $ aggregated @s @a outerResults
 
 groupBy ::
   (Same s t, Same t u) =>

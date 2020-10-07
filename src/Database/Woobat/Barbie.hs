@@ -145,36 +145,36 @@ instance (Barbie f a, Barbie f b, Barbie f c, Barbie f d, Barbie f e, Barbie f a
 
 -------------------------------------------------------------------------------
 
-type ToOuter s a = FromBarbie (Expr (Inner s)) a (Expr s)
+type Outer s a = FromBarbie (Expr (Inner s)) a (Expr s)
 
-toOuter ::
+outer ::
   forall s a.
   (Barbie (Expr (Inner s)) a) =>
   ToBarbie (Expr (Inner s)) a (Expr (Inner s)) ->
-  ToOuter s a
-toOuter =
+  Outer s a
+outer =
   fromBarbie @(Expr (Inner s)) @a
     . HKD.bmap (coerce :: forall x. Expr (Inner s) x -> Expr s x)
 
-type ToLeft s a = FromBarbie (Expr (Inner s)) a (NullableF (Expr s))
+type Left s a = FromBarbie (Expr (Inner s)) a (NullableF (Expr s))
 
-toLeft ::
+left ::
   forall s a.
   (Barbie (Expr (Inner s)) a) =>
   ToBarbie (Expr (Inner s)) a (Expr (Inner s)) ->
-  ToLeft s a
-toLeft =
+  Left s a
+left =
   fromBarbie @(Expr (Inner s)) @a
     . HKD.bmap (coerce :: forall x. Expr (Inner s) x -> NullableExpr s x)
 
-type FromAggregate s a = FromBarbie (AggregateExpr (Inner s)) a (Expr s)
+type Aggregated s a = FromBarbie (AggregateExpr (Inner s)) a (Expr s)
 
-fromAggregate ::
+aggregated ::
   forall s a.
   (Barbie (AggregateExpr (Inner s)) a) =>
   ToBarbie (AggregateExpr (Inner s)) a (Expr (Inner s)) ->
-  FromAggregate s a
-fromAggregate =
+  Aggregated s a
+aggregated =
   fromBarbie @(AggregateExpr (Inner s)) @a
     . HKD.bmap (coerce :: forall x. Expr (Inner s) x -> Expr s x)
 
