@@ -35,12 +35,20 @@ instance
   where
   fromLabel = HKD.field @field . lens (\(NullableF e) -> e) const
 
+newtype Newtype = Newtype Text
+
+instance DatabaseType Newtype where
+  encode (Newtype t) = encode t
+  decoder = mapDecoder Newtype decoder
+  typeName = typeName @Text
+
 data Profile = Profile
   { name :: !Text
   , description :: !Text
   , age :: !Int
   , optional :: !(Maybe Text)
   , boolean :: !Bool
+  , newtype_ :: !Newtype
   }
   deriving (Generic)
 
@@ -55,6 +63,7 @@ ppp =
     , description = ""
     , optional = Nothing
     , boolean = False
+    , newtype_ = Newtype "newtype"
     }
 
 descriptionQuery :: Select s (Expr s Text)

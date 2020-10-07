@@ -467,6 +467,10 @@ data Decoder a where
   Decoder :: Decoding.Value a -> Decoder a
   NullableDecoder :: Decoding.Value a -> Decoder (Maybe a)
 
+mapDecoder :: NonNestedMaybe a => (a -> b) -> Decoder a -> Decoder b
+mapDecoder f (Decoder d) = Decoder $ f <$> d
+mapDecoder _ (NullableDecoder _) = impossible
+
 -- | @boolean@
 instance DatabaseType Bool where
   typeName = "boolean"
