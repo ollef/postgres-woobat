@@ -67,7 +67,7 @@ class HKD.TraversableB (ToBarbie f t) => Barbie (f :: * -> *) t where
 
 instance Barbie f () where
   type ToBarbie f () = Barbie.Unit
-  type FromBarbie f () g = ()
+  type FromBarbie f () _ = ()
   toBarbie () = Barbie.Unit
   fromBarbie Barbie.Unit = ()
 
