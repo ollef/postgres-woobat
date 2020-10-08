@@ -396,9 +396,13 @@ instance DatabaseType (JSONB a) where
 instance FromJSON (JSONB a) where
   fromJSON = coerce
 
-toJSONB :: Expr s a -> Expr s (JSONB a)
--- The row here means that we get a non-null JSONB containing null for a null input instead of a null JSONB
-toJSONB (Expr e) = Expr $ "(TO_JSONB(ROW(" <> e <> "))->'f1')"
+toJSONB :: forall s a. DatabaseType a => Expr s a -> Expr s (JSONB a)
+toJSONB (Expr e) = case decoder @a of
+  Decoder _ ->
+    Expr $ "TO_JSONB(" <> e <> ")"
+  NullableDecoder _ ->
+    -- The row here means that we get a non-null JSONB containing null for a null input instead of a null JSONB
+    Expr $ "(TO_JSONB(ROW(" <> e <> "))->'f1')"
 -------------------------------------------------------------------------------
 
 -- * Nullable types
