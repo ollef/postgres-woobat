@@ -28,6 +28,7 @@ library
       Database.Woobat.Barbie
       Database.Woobat.Compiler
       Database.Woobat.Expr
+      Database.Woobat.Expr.Types
       Database.Woobat.Monad
       Database.Woobat.Raw
       Database.Woobat.Scope

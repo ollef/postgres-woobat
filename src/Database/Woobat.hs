@@ -18,7 +18,7 @@ module Database.Woobat (
   module Database.Woobat.Table,
 ) where
 
-import Database.Woobat.Expr hiding (Impossible, param, unsafeBinaryOperator, unsafeCastFromJSONString)
+import Database.Woobat.Expr hiding (Impossible, hkdRow, param, unsafeBinaryOperator, unsafeCastFromJSONString)
 import Database.Woobat.Monad
 import Database.Woobat.Scope
 import Database.Woobat.Select

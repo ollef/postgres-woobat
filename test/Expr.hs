@@ -368,7 +368,7 @@ genSomeNonNested =
           SomeNonNested $ do
             a <- gena
             b <- genb
-            pure $ TableTwo {field1 = a, field2 = b}
+            pure $ pureRow TableTwo {field1 = a, field2 = b}
     ]
 
 genSomeFractional :: Hedgehog.MonadGen m => m SomeFractional

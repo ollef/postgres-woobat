@@ -20,7 +20,7 @@ import Data.Functor.Identity
 import Data.Functor.Product
 import Data.Generic.HKD (HKD)
 import qualified Data.Generic.HKD as HKD
-import Database.Woobat.Expr
+import Database.Woobat.Expr.Types
 import Database.Woobat.Scope
 import GHC.Generics
 

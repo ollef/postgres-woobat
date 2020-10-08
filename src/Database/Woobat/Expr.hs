@@ -6,13 +6,18 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
-module Database.Woobat.Expr where
+module Database.Woobat.Expr (
+  module Database.Woobat.Expr.Types,
+  module Database.Woobat.Expr,
+) where
 
 import qualified ByteString.StrictBuilder as Builder
 import Control.Monad
@@ -38,6 +43,8 @@ import Data.Text (Text)
 import qualified Data.Text.Lazy as Lazy
 import Data.Time (Day, DiffTime, LocalTime, TimeOfDay, TimeZone, UTCTime)
 import Data.UUID.Types (UUID)
+import Database.Woobat.Barbie
+import Database.Woobat.Expr.Types
 import qualified Database.Woobat.Raw as Raw
 import qualified Database.Woobat.Scope as Scope
 import GHC.Generics
@@ -45,22 +52,6 @@ import GHC.TypeLits (ErrorMessage (..), TypeError)
 import qualified PostgreSQL.Binary.Decoding as Decoding
 import PostgreSQL.Binary.Encoding (Encoding)
 import qualified PostgreSQL.Binary.Encoding as Encoding
-
--------------------------------------------------------------------------------
-
--- * Types
-
-newtype Expr s a = Expr Raw.SQL
-
-newtype AggregateExpr s a = AggregateExpr Raw.SQL
-
-type NullableExpr s a = NullableF (Expr s) a
-
-newtype NullableF f a = NullableF (f (Nullable a))
-
-type family Nullable a where
-  Nullable (Maybe a) = Maybe a
-  Nullable a = Maybe a
 
 -------------------------------------------------------------------------------
 
@@ -309,20 +300,41 @@ type family NonNestedArray a :: Constraint where
 
 -- * Rows
 
-row :: HKD.TraversableB (HKD table) => HKD table (Expr s) -> Expr s table
-row table =
-  Expr $ "ROW(" <> Raw.separateBy ", " (Barbie.bfoldMap (\(Expr e) -> [e]) table) <> ")"
+record ::
+  ( HKD.TraversableB (HKD row)
+  , HKD.ConstraintsB (HKD row)
+  , HKD.AllB DatabaseType (HKD row)
+  , HKD.Construct Identity row
+  , Generic row
+  ) =>
+  row ->
+  HKD row (Expr s)
+record =
+  Barbie.bmapC @DatabaseType (\(Identity a) -> value a) . HKD.deconstruct
+
+newtype Row row = Row (row Identity)
+
+pureRow :: HKD.Construct Identity row => row -> Row (HKD row)
+pureRow = Row . HKD.deconstruct
+
+deriving instance Eq (row Identity) => Eq (Row row)
+deriving instance Ord (row Identity) => Ord (Row row)
+deriving instance Show (row Identity) => Show (Row row)
+
+row :: forall s row. Barbie (Expr s) row => row -> Expr s (Row (ToBarbie (Expr s) row))
+row r = do
+  let barbieRow :: ToBarbie (Expr s) row (Expr s)
+      barbieRow = toBarbie r
+  hkdRow barbieRow
 
 fromJSONRow ::
-  ( Generic table
-  , HKD.ConstraintsB (HKD table)
-  , HKD.TraversableB (HKD table)
-  , Barbie.AllB FromJSON (HKD table)
-  , Monoid tuple
-  , HKD.Tuple (Const ()) table tuple
+  ( HKD.AllB FromJSON row
+  , HKD.TraversableB row
+  , HKD.ConstraintsB row
+  , Monoid (row (Const ()))
   ) =>
-  Expr s (JSONB table) ->
-  HKD table (Expr s)
+  Expr s (JSONB (Row row)) ->
+  row (Expr s)
 fromJSONRow (Expr json) =
   flip evalState 1 $ Barbie.btraverseC @FromJSON go mempty
   where
@@ -333,48 +345,39 @@ fromJSONRow (Expr json) =
       return $ fromJSON $ Expr $ "(" <> json <> "->'f" <> fromString (show i) <> "')"
 
 instance
-  {-# OVERLAPPABLE #-}
-  ( Generic table
-  , HKD.Construct Identity table
-  , HKD.Construct Decoding.Composite table
-  , HKD.ConstraintsB (HKD table)
-  , HKD.TraversableB (HKD table)
-  , Barbie.AllB DatabaseType (HKD table)
-  , Monoid tuple
-  , HKD.Tuple (Const ()) table tuple
+  ( HKD.AllB DatabaseType row
+  , HKD.TraversableB row
+  , HKD.ConstraintsB row
+  , Monoid (row (Const ()))
   ) =>
-  DatabaseType table
+  DatabaseType (Row row)
   where
   typeName = "record"
-  value table =
-    row $ Barbie.bmapC @DatabaseType (\(Identity field) -> value field) $ HKD.deconstruct table
+  value (Row r) = do
+    let values = Barbie.bmapC @DatabaseType (\(Identity field) -> value field) r
+    hkdRow values
   decoder =
     Decoder $
       Decoding.composite $
-        HKD.construct $
-          Barbie.bmapC
+        Row
+          <$> Barbie.btraverseC
             @DatabaseType
             ( \(Const ()) -> case decoder of
-                Decoder d -> Decoding.valueComposite d
-                NullableDecoder d -> Decoding.nullableValueComposite d
+                Decoder d -> Identity <$> Decoding.valueComposite d
+                NullableDecoder d -> Identity <$> Decoding.nullableValueComposite d
             )
             mempty
 
 instance
-  {-# OVERLAPPABLE #-}
-  ( Generic table
-  , HKD.Construct Identity table
-  , HKD.Construct Decoding.Composite table
-  , HKD.ConstraintsB (HKD table)
-  , HKD.TraversableB (HKD table)
-  , Barbie.AllB DatabaseType (HKD table)
-  , Barbie.AllB FromJSON (HKD table)
-  , Monoid tuple
-  , HKD.Tuple (Const ()) table tuple
+  ( HKD.AllB DatabaseType row
+  , HKD.AllB FromJSON row
+  , HKD.TraversableB row
+  , HKD.ConstraintsB row
+  , Monoid (row (Const ()))
   ) =>
-  FromJSON table
+  FromJSON (Row row)
   where
-  fromJSON = row . fromJSONRow
+  fromJSON = hkdRow . fromJSONRow
 
 -------------------------------------------------------------------------------
 
@@ -662,3 +665,7 @@ unsafeCastFromJSONString (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> t
 
 class Impossible where
   impossible :: a
+
+hkdRow :: HKD.TraversableB row => row (Expr s) -> Expr s (Row row)
+hkdRow r = do
+  Expr $ "ROW(" <> Raw.separateBy ", " (Barbie.bfoldMap (\(Expr e) -> [e]) r) <> ")"
