@@ -417,11 +417,11 @@ nothing = Expr $ "null::" <> typeName @a
 just :: (NonNestedMaybe a, DatabaseType a) => Expr s a -> Expr s (Maybe a)
 just = coerce
 
--- | @IS NULL@
+-- | @IS NOT DISTINCT FROM null@
 isNothing_ :: DatabaseType a => Expr s (Maybe a) -> Expr s Bool
 isNothing_ e = e ==. nothing
 
--- | @IS NOT NULL@
+-- | @IS DISTINCT FROM null@
 isJust_ :: DatabaseType a => Expr s (Maybe a) -> Expr s Bool
 isJust_ e = e /=. nothing
 
