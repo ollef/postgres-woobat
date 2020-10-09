@@ -312,7 +312,20 @@ record ::
 record =
   Barbie.bmapC @DatabaseType (\(Identity a) -> value a) . HKD.deconstruct
 
-newtype Row row = Row (row Identity)
+type Row row = RowF row Identity
+newtype RowF row (f :: * -> *) = Row (row f)
+
+instance HKD.FunctorB row => HKD.FunctorB (RowF row) where
+  bmap f (Row row_) = Row $ HKD.bmap f row_
+
+instance HKD.TraversableB row => HKD.TraversableB (RowF row) where
+  btraverse f (Row row_) = Row <$> HKD.btraverse f row_
+
+instance HKD.TraversableB row => Barbie f (RowF row f) where
+  type ToBarbie f (RowF row f) = row
+  type FromBarbie f (RowF row f) g = row g
+  toBarbie (Row x) = x
+  fromBarbie = id
 
 pureRow :: HKD.Construct Identity row => row -> Row (HKD row)
 pureRow = Row . HKD.deconstruct
