@@ -77,6 +77,12 @@ instance Barbie f () where
   toBarbie () = Barbie.Unit
   fromBarbie Barbie.Unit = ()
 
+instance Same s t => Barbie (Expr s) (Singleton a (Expr t)) where
+  type ToBarbie (Expr s) (Singleton a (Expr t)) = Singleton a
+  type FromBarbie (Expr s) (Singleton a (Expr t)) g = g a
+  toBarbie = id
+  fromBarbie (Singleton x) = x
+
 instance Same s t => Barbie (Expr s) (Expr t a) where
   type ToBarbie (Expr s) (Expr t a) = Singleton a
   type FromBarbie (Expr s) (Expr t a) g = g a
