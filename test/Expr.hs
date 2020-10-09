@@ -387,7 +387,7 @@ genSomeNum =
     , do
         SomeIntegral x <- genSomeIntegral
         pure $ SomeNum x
-    , pure $ SomeNum $ (scientific <$> Gen.integral (Range.linearFrom 0 (-1000000000000000000) 1000000000000000000000000) <*> Gen.integral (Range.linearFrom 0 (-1000) 1000))
+    , pure $ SomeNum $ scientific <$> Gen.integral (Range.linearFrom 0 (-1000000000000000000) 1000000000000000000000000) <*> Gen.integral (Range.linearFrom 0 (-1000) 1000)
     ]
 
 genSomeIntegral :: Hedgehog.MonadGen m => m SomeIntegral
