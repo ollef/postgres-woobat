@@ -1,6 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Database.Woobat.Raw where
@@ -10,6 +11,7 @@ import qualified ByteString.StrictBuilder as Builder
 import Control.Monad
 import Data.ByteString (ByteString)
 import Data.Foldable
+import Data.HashMap.Lazy (HashMap)
 import Data.List (intersperse)
 import Data.Sequence (Seq)
 import qualified Data.Sequence as Seq
@@ -49,6 +51,10 @@ instance Semigroup SQL where
 instance Monoid SQL where
   mempty = SQL mempty
 
+separateBy :: (Foldable f, Monoid a) => a -> f a -> a
+separateBy separator =
+  mconcat . intersperse separator . toList
+
 code :: ByteString -> SQL
 code = SQL . pure . Code . Builder.bytes
 
@@ -58,39 +64,26 @@ param = SQL . pure . Param
 nullParam :: SQL
 nullParam = SQL $ pure NullParam
 
-separateBy :: (Foldable f, Monoid a) => a -> f a -> a
-separateBy separator =
-  mconcat . intersperse separator . toList
+-------------------------------------------------------------------------------
+newtype Expr = Expr {unExpr :: HashMap ByteString Int -> SQL}
+  deriving (Semigroup, Monoid)
+
+instance Show Expr where
+  show (Expr f) = show $ f mempty
+
+instance IsString Expr where
+  fromString = Expr . const . fromString
+
+codeExpr :: ByteString -> Expr
+codeExpr = Expr . pure . code
+
+paramExpr :: ByteString -> Expr
+paramExpr = Expr . pure . param
+
+nullParamExpr :: Expr
+nullParamExpr = Expr $ pure nullParam
 
 -------------------------------------------------------------------------------
-
-data Tsil a = Empty | Tsil a :> a
-  deriving (Eq, Ord, Show, Functor, Traversable)
-
-instance Foldable Tsil where
-  foldMap _ Empty = mempty
-  foldMap f (xs :> x) = foldMap f xs `mappend` f x
-
-  toList = reverse . go
-    where
-      go Empty = []
-      go (xs :> x) = x : go xs
-
-instance Semigroup (Tsil a) where
-  xs <> Empty = xs
-  xs <> ys :> y = (xs <> ys) :> y
-
-instance Monoid (Tsil a) where
-  mempty = Empty
-
-instance Applicative Tsil where
-  pure = (Empty :>)
-  (<*>) = ap
-
-instance Monad Tsil where
-  return = pure
-  Empty >>= _ = Empty
-  xs :> x >>= f = (xs >>= f) <> f x
 
 data Select = Select
   { from :: !(From ())
@@ -136,3 +129,33 @@ instance Semigroup (From unitAlias) where
 
 instance Monoid (From ()) where
   mempty = Unit ()
+
+-------------------------------------------------------------------------------
+
+data Tsil a = Empty | Tsil a :> a
+  deriving (Eq, Ord, Show, Functor, Traversable)
+
+instance Foldable Tsil where
+  foldMap _ Empty = mempty
+  foldMap f (xs :> x) = foldMap f xs `mappend` f x
+
+  toList = reverse . go
+    where
+      go Empty = []
+      go (xs :> x) = x : go xs
+
+instance Semigroup (Tsil a) where
+  xs <> Empty = xs
+  xs <> ys :> y = (xs <> ys) :> y
+
+instance Monoid (Tsil a) where
+  mempty = Empty
+
+instance Applicative Tsil where
+  pure = (Empty :>)
+  (<*>) = ap
+
+instance Monad Tsil where
+  return = pure
+  Empty >>= _ = Empty
+  xs :> x >>= f = (xs >>= f) <> f x

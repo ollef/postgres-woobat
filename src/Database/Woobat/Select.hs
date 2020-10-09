@@ -117,7 +117,7 @@ compile s = do
   let (results, st) = run mempty s
       resultsBarbie :: ToBarbie (Expr ()) a (Expr ())
       resultsBarbie = toBarbie results
-      sql = Compiler.compileSelect (Barbie.bfoldMap (\(Expr e) -> [e]) resultsBarbie) $ rawSelect st
+      sql = Compiler.compileSelect (Barbie.bfoldMap (\(Expr e) -> [Raw.unExpr e $ usedNames st]) resultsBarbie) $ rawSelect st
   (sql, resultsBarbie)
 
 from ::
@@ -131,13 +131,15 @@ from table = Select $ do
   alias <- freshName tableName
   let tableRow :: HKD table (Expr s)
       tableRow =
-        HKD.bmap (\(Const columnName) -> Expr $ Raw.code $ alias <> "." <> Text.encodeUtf8 columnName) $ Table.columnNames table
+        HKD.bmap (\(Const columnName) -> Expr $ Raw.codeExpr $ alias <> "." <> Text.encodeUtf8 columnName) $ Table.columnNames table
   addSelect mempty {Raw.from = Raw.Table tableName alias}
   pure tableRow
 
 where_ :: Same s t => Expr s Bool -> Select t ()
 where_ (Expr cond) =
-  Select $ addSelect mempty {Raw.wheres = pure cond}
+  Select $ do
+    usedNames_ <- gets usedNames
+    addSelect mempty {Raw.wheres = pure $ Raw.unExpr cond usedNames_}
 
 filter_ :: (Same s t, Same t u) => (a -> Expr s Bool) -> Select t a -> Select u a
 filter_ f q = do
@@ -147,7 +149,9 @@ filter_ f q = do
 
 orderBy :: Same s t => Expr s a -> Raw.Order -> Select t ()
 orderBy (Expr expr) order_ =
-  Select $ addSelect mempty {Raw.orderBys = pure (expr, order_)}
+  Select $ do
+    usedNames_ <- gets usedNames
+    addSelect mempty {Raw.orderBys = pure (Raw.unExpr expr usedNames_, order_)}
 
 ascending :: Raw.Order
 ascending = Raw.Ascending
@@ -167,6 +171,7 @@ leftJoin (Select sel) on = Select $ do
       innerResultsBarbie = toBarbie innerResults
   leftFrom <- gets $ Raw.from . rawSelect
   leftFrom' <- mapM (\() -> freshName "unit") leftFrom
+  usedNames_ <- gets usedNames
   case rightSelect of
     Raw.Select rightFrom Raw.Empty Raw.Empty Raw.Empty -> do
       let Expr rawOn =
@@ -177,7 +182,7 @@ leftJoin (Select sel) on = Select $ do
           { rawSelect =
               (rawSelect s)
                 { Raw.from =
-                    Raw.LeftJoin leftFrom' rawOn rightFrom'
+                    Raw.LeftJoin leftFrom' (Raw.unExpr rawOn usedNames_) rightFrom'
                 }
           }
       return $ left @s @a innerResultsBarbie
@@ -192,7 +197,7 @@ leftJoin (Select sel) on = Select $ do
           innerResultsBarbie
       let outerResults :: ToBarbie (Expr (Inner s)) a (Expr (Inner s))
           outerResults =
-            HKD.bmap (\(Pair (Const name) _) -> Expr $ Raw.code $ alias <> "." <> name) namedResults
+            HKD.bmap (\(Pair (Const name) _) -> Expr $ Raw.codeExpr $ alias <> "." <> name) namedResults
           Expr rawOn =
             on $ outer @s @a outerResults
       modify $ \s ->
@@ -202,9 +207,9 @@ leftJoin (Select sel) on = Select $ do
                 { Raw.from =
                     Raw.LeftJoin
                       leftFrom'
-                      rawOn
+                      (Raw.unExpr rawOn usedNames_)
                       ( Raw.Subquery
-                          (Barbie.bfoldMap (\(Pair (Const name) (Expr e)) -> pure (e, name)) namedResults)
+                          (Barbie.bfoldMap (\(Pair (Const name) (Expr e)) -> pure (Raw.unExpr e usedNames_, name)) namedResults)
                           rightSelect
                           alias
                       )
@@ -220,6 +225,7 @@ aggregate ::
 aggregate (Select sel) = Select $ do
   (innerResults, aggSelect) <- subquery sel
   alias <- freshName "subquery"
+  usedNames_ <- gets usedNames
   namedResults :: ToBarbie (AggregateExpr (Inner s)) a (Product (Const ByteString) (AggregateExpr (Inner s))) <-
     HKD.btraverse
       ( \e -> do
@@ -229,12 +235,12 @@ aggregate (Select sel) = Select $ do
       (toBarbie innerResults)
   let outerResults :: ToBarbie (AggregateExpr (Inner s)) a (Expr (Inner s))
       outerResults =
-        HKD.bmap (\(Pair (Const name) _) -> Expr $ Raw.code $ alias <> "." <> name) namedResults
+        HKD.bmap (\(Pair (Const name) _) -> Expr $ Raw.codeExpr $ alias <> "." <> name) namedResults
   addSelect
     mempty
       { Raw.from =
           Raw.Subquery
-            (Barbie.bfoldMap (\(Pair (Const name) (AggregateExpr e)) -> pure (e, name)) namedResults)
+            (Barbie.bfoldMap (\(Pair (Const name) (AggregateExpr e)) -> pure (Raw.unExpr e usedNames_, name)) namedResults)
             aggSelect
             alias
       }
@@ -245,7 +251,8 @@ groupBy ::
   Expr (Inner s) a ->
   Select (Inner t) (AggregateExpr (Inner u) a)
 groupBy (Expr expr) = Select $ do
-  addSelect mempty {Raw.groupBys = pure expr}
+  usedNames_ <- gets usedNames
+  addSelect mempty {Raw.groupBys = pure $ Raw.unExpr expr usedNames_}
   pure $ AggregateExpr expr
 
 values :: forall s t u a. (Same s t, Same t u, Barbie (Expr (Inner s)) a) => NonEmpty a -> Select t (Outer s a)
@@ -256,12 +263,13 @@ values rows = Select $ do
   rowAlias <- Raw.code <$> freshName "values"
   aliasesBarbie <- Barbie.btraverse (\_ -> Const <$> freshName "col") firstBarbieRow
   let aliases = Barbie.bfoldMap (\(Const a) -> [Raw.code a]) aliasesBarbie
+  usedNames_ <- gets usedNames
   addSelect
     mempty
       { Raw.from =
           Raw.Set
             ( "(VALUES "
-                <> Raw.separateBy ", " ((\row_ -> "(" <> Raw.separateBy ", " (Barbie.bfoldMap (\(Expr e) -> [e]) row_) <> ")") <$> barbieRows)
+                <> Raw.separateBy ", " ((\row_ -> "(" <> Raw.separateBy ", " (Barbie.bfoldMap (\(Expr e) -> [Raw.unExpr e usedNames_]) row_) <> ")") <$> barbieRows)
                 <> ")"
             )
             ( rowAlias
@@ -271,7 +279,7 @@ values rows = Select $ do
             )
       }
   let resultBarbie :: ToBarbie (Expr (Inner s)) a (Expr (Inner s))
-      resultBarbie = Barbie.bmap (\(Const alias) -> Expr $ Raw.code alias) aliasesBarbie
+      resultBarbie = Barbie.bmap (\(Const alias) -> Expr $ Raw.codeExpr alias) aliasesBarbie
   pure $ outer @s @a resultBarbie
 
 -- | @UNNEST@
@@ -284,7 +292,8 @@ unnest ::
   Select t (Unnested a (Expr s))
 unnest (Expr arr) = Select $ do
   (returnRow, result) <- unnested @a @s
-  addSelect mempty {Raw.from = Raw.Set ("UNNEST(" <> arr <> ")") returnRow}
+  usedNames_ <- gets usedNames
+  addSelect mempty {Raw.from = Raw.Set ("UNNEST(" <> Raw.unExpr arr usedNames_ <> ")") returnRow}
   pure result
 
 -- TODO move
@@ -297,7 +306,7 @@ class Unnestable a where
   default unnested :: (UnnestedBarbie a ~ Singleton a) => State SelectState (Raw.SQL, Unnested a (Expr s))
   unnested = do
     alias <- Raw.code <$> freshName "unnested"
-    pure (alias, Expr alias)
+    pure (alias, Expr $ Raw.Expr $ const alias)
 
 instance Unnestable [a]
 instance Unnestable (JSONB a)
@@ -334,11 +343,12 @@ instance
   type UnnestedBarbie (Row row) = RowF row
   unnested = do
     returnRow <- Barbie.btraverseC @UnnestableRowElement go (mempty :: row (Const ()))
-    let returnRowList = Barbie.bfoldMap (\(Const (colAlias, typeName_)) -> [colAlias <> " " <> typeName_]) returnRow
-        result = Barbie.bmap (\(Const (colAlias, _)) -> Expr colAlias) returnRow
+    usedNames_ <- gets usedNames
+    let returnRowList = Barbie.bfoldMap (\(Const (colAlias, typeName_)) -> [colAlias <> " " <> Raw.unExpr typeName_ usedNames_]) returnRow
+        result = Barbie.bmap (\(Const (colAlias, _)) -> Expr $ Raw.Expr $ const colAlias) returnRow
     pure ("(" <> Raw.separateBy ", " returnRowList <> ")", result)
     where
-      go :: forall a. UnnestableRowElement a => Const () a -> State SelectState (Const (Raw.SQL, Raw.SQL) a)
+      go :: forall a. UnnestableRowElement a => Const () a -> State SelectState (Const (Raw.SQL, Raw.Expr) a)
       go (Const ()) = do
         colAlias <- freshName "col"
         pure $ Const (Raw.code colAlias, typeName @a)

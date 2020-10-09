@@ -405,7 +405,7 @@ class DatabaseType a => FromJSON a where
 instance DatabaseType (JSONB a) where
   typeName = "jsonb"
   encode (JSONB json) =
-    Raw.param (Builder.builderBytes $ Encoding.jsonb_ast json)
+    Raw.paramExpr (Builder.builderBytes $ Encoding.jsonb_ast json)
   decoder =
     Decoder $ JSONB <$> Decoding.jsonb_ast
 
@@ -476,8 +476,8 @@ type family NonNestedMaybe a :: Constraint where
 class DatabaseType a where
   value :: a -> Expr s a
   value a = Expr $ encode a <> "::" <> typeName @a
-  typeName :: Raw.SQL
-  encode :: a -> Raw.SQL
+  typeName :: Raw.Expr
+  encode :: a -> Raw.Expr
   encode = coerce . value
   decoder :: Decoder a
   {-# MINIMAL (value | encode), typeName, decoder #-}
@@ -666,11 +666,11 @@ instance FromJSON DiffTime where
 
 -- * Low-level utilities
 
-param :: forall a. (a -> Encoding) -> a -> Raw.SQL
+param :: forall a. (a -> Encoding) -> a -> Raw.Expr
 param encoding =
-  Raw.param . Builder.builderBytes . encoding
+  Raw.paramExpr . Builder.builderBytes . encoding
 
-unsafeBinaryOperator :: Scope.Same s t => Raw.SQL -> Expr s a -> Expr t b -> Expr s c
+unsafeBinaryOperator :: Scope.Same s t => Raw.Expr -> Expr s a -> Expr t b -> Expr s c
 unsafeBinaryOperator name (Expr x) (Expr y) = Expr $ "(" <> x <> " " <> name <> " " <> y <> ")"
 
 unsafeCastFromJSONString :: forall s a. DatabaseType a => Expr s (JSONB a) -> Expr s a
