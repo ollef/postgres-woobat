@@ -12,6 +12,7 @@ module Select where
 import Control.Lens
 import Data.Foldable
 import Data.Generics.Labels ()
+import qualified Data.List as List
 import qualified Data.List.NonEmpty as NonEmpty
 import Database.Woobat
 import qualified Expr
@@ -82,5 +83,17 @@ properties =
                 where_ $ tab ^. #field1 ==. tab ^. #field1 &&. tab ^. #field2 ==. tab ^. #field2
                 pure tab
         result Hedgehog.=== xs
+    )
+  ,
+    ( "exists"
+    , Hedgehog.property $ do
+        Expr.SomeIntegral gen <- Hedgehog.forAll Expr.genSomeIntegral
+        xs <- Hedgehog.forAll $ Gen.list (Range.linearFrom 0 0 10) gen
+        result <-
+          Hedgehog.evalM $
+            runWoobat $
+              select $
+                pure $ exists $ unnest (value xs)
+        result Hedgehog.=== [not (List.null xs)]
     )
   ]

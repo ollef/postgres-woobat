@@ -44,9 +44,11 @@ import qualified Data.Text.Lazy as Lazy
 import Data.Time (Day, DiffTime, LocalTime, TimeOfDay, TimeZone, UTCTime)
 import Data.UUID.Types (UUID)
 import Database.Woobat.Barbie
+import Database.Woobat.Compiler
 import Database.Woobat.Expr.Types
 import qualified Database.Woobat.Raw as Raw
 import qualified Database.Woobat.Scope as Scope
+import Database.Woobat.Select.Builder
 import GHC.Generics
 import GHC.TypeLits (ErrorMessage (..), TypeError)
 import qualified PostgreSQL.Binary.Decoding as Decoding
@@ -467,6 +469,17 @@ type family NonNestedMaybe a :: Constraint where
     , Impossible
     )
   NonNestedMaybe _ = ()
+
+-------------------------------------------------------------------------------
+
+-- * Subqueries
+
+-- | @EXISTS()@
+exists :: Select s a -> Expr s Bool
+exists select = Expr $
+  Raw.Expr $ \usedNames_ -> do
+    let (_, st) = run usedNames_ select
+    "EXISTS(" <> compileSelect [] (rawSelect st) <> ")"
 
 -------------------------------------------------------------------------------
 
