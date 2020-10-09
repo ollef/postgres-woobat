@@ -223,6 +223,7 @@ data SomeFractional where
     , NonNestedMaybe a
     , Nullable a ~ Maybe a
     , NonNestedArray a
+    , UnnestableRowElement a
     ) =>
     Hedgehog.Gen a ->
     SomeFractional
@@ -237,6 +238,7 @@ data SomeNum where
     , NonNestedMaybe a
     , Nullable a ~ Maybe a
     , NonNestedArray a
+    , UnnestableRowElement a
     ) =>
     Hedgehog.Gen a ->
     SomeNum
@@ -250,6 +252,7 @@ data SomeIntegral where
     , NonNestedMaybe a
     , Nullable a ~ Maybe a
     , NonNestedArray a
+    , UnnestableRowElement a
     ) =>
     Hedgehog.Gen a ->
     SomeIntegral

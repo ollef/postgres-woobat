@@ -1,5 +1,4 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -7,7 +6,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
@@ -18,17 +16,25 @@ module Database.Woobat.Select (
 ) where
 
 import Control.Exception.Safe
+import Control.Monad
 import Control.Monad.State
 import qualified Data.Barbie as Barbie
 import Data.ByteString (ByteString)
+import qualified Data.ByteString.Lazy as Lazy
 import Data.Functor.Const (Const (Const))
 import Data.Functor.Identity
 import Data.Functor.Product
 import Data.Generic.HKD (HKD)
 import qualified Data.Generic.HKD as HKD
+import Data.Int
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
+import Data.Scientific
+import Data.Text (Text)
 import qualified Data.Text.Encoding as Text
+import qualified Data.Text.Lazy as Lazy
+import Data.Time (Day, DiffTime, LocalTime, TimeOfDay, TimeZone, UTCTime)
+import Data.UUID.Types (UUID)
 import qualified Database.PostgreSQL.LibPQ as LibPQ
 import Database.Woobat.Barbie hiding (result)
 import qualified Database.Woobat.Barbie
@@ -242,29 +248,6 @@ groupBy (Expr expr) = Select $ do
   addSelect mempty {Raw.groupBys = pure expr}
   pure $ AggregateExpr expr
 
--- unnest :: forall s t u a. (Same s t, Same t u, Unnestable a) => Expr s [a] -> Select t (Unnested u a)
--- unnest (Expr arr) = Select $ do
---   (returnRow, result) <- unnested @a
---   addSelect mempty {Raw.from = Raw.Set ("UNNEST(" <> arr <> ")") returnRow}
---   pure result
-
--- class Unnestable a where
---   type Unnested s a
---   type Unnested s a = Expr s a
---   unnested :: State SelectState (Raw.SQL, Unnested s a)
---   default unnested :: (Unnested s a ~ Expr s a) => State SelectState (Raw.SQL, Unnested s a)
---   unnested = do
---     alias <- Raw.code <$> freshName "unnested"
---     pure (alias, Expr alias)
-
--- instance {-# OVERLAPPING #-} HKD.AllB UnnestableRowElement (HKD table) => Unnestable table where
---   type Unnested s table = HKD table (Expr s)
---   unnested _ = do
---     rowAlias <- freshName "unnested"
---     undefined
-
--- class Unnestable a => UnnestableRowElement a
-
 values :: forall s t u a. (Same s t, Same t u, Barbie (Expr (Inner s)) a) => NonEmpty a -> Select t (Outer s a)
 values rows = Select $ do
   let firstBarbieRow :: ToBarbie (Expr (Inner s)) a (Expr (Inner s))
@@ -290,3 +273,88 @@ values rows = Select $ do
   let resultBarbie :: ToBarbie (Expr (Inner s)) a (Expr (Inner s))
       resultBarbie = Barbie.bmap (\(Const alias) -> Expr $ Raw.code alias) aliasesBarbie
   pure $ outer @s @a resultBarbie
+
+-- | @UNNEST@
+unnest ::
+  forall s t a.
+  ( Same s t
+  , Unnestable a
+  ) =>
+  Expr s [a] ->
+  Select t (Unnested a (Expr s))
+unnest (Expr arr) = Select $ do
+  (returnRow, result) <- unnested @a @s
+  addSelect mempty {Raw.from = Raw.Set ("UNNEST(" <> arr <> ")") returnRow}
+  pure result
+
+-- TODO move
+type Unnested a f = FromBarbie f (UnnestedBarbie a f) f
+
+class Unnestable a where
+  type UnnestedBarbie a :: (* -> *) -> *
+  type UnnestedBarbie a = Singleton a
+  unnested :: State SelectState (Raw.SQL, Unnested a (Expr s))
+  default unnested :: (UnnestedBarbie a ~ Singleton a) => State SelectState (Raw.SQL, Unnested a (Expr s))
+  unnested = do
+    alias <- Raw.code <$> freshName "unnested"
+    pure (alias, Expr alias)
+
+instance Unnestable [a]
+instance Unnestable (JSONB a)
+instance UnnestableRowElement a => Unnestable (Maybe a)
+instance Unnestable Bool
+instance Unnestable Int
+instance Unnestable Int16
+instance Unnestable Int32
+instance Unnestable Int64
+instance Unnestable Float
+instance Unnestable Double
+instance Unnestable Scientific
+instance Unnestable UUID
+instance Unnestable Char
+instance Unnestable Text
+instance Unnestable Lazy.Text
+instance Unnestable ByteString
+instance Unnestable Lazy.ByteString
+instance Unnestable Day
+instance Unnestable TimeOfDay
+instance Unnestable (TimeOfDay, TimeZone)
+instance Unnestable LocalTime
+instance Unnestable UTCTime
+instance Unnestable DiffTime
+
+instance
+  ( HKD.AllB UnnestableRowElement row
+  , HKD.ConstraintsB row
+  , HKD.TraversableB row
+  , Monoid (row (Const ()))
+  ) =>
+  Unnestable (Row row)
+  where
+  type UnnestedBarbie (Row row) = RowF row
+  unnested = do
+    returnRow <- Barbie.btraverseC @UnnestableRowElement go (mempty :: row (Const ()))
+    let returnRowList = Barbie.bfoldMap (\(Const (colAlias, typeName_)) -> [colAlias <> " " <> typeName_]) returnRow
+        result = Barbie.bmap (\(Const (colAlias, _)) -> Expr colAlias) returnRow
+    pure ("(" <> Raw.separateBy ", " returnRowList <> ")", result)
+    where
+      go :: forall a. UnnestableRowElement a => Const () a -> State SelectState (Const (Raw.SQL, Raw.SQL) a)
+      go (Const ()) = do
+        colAlias <- freshName "col"
+        pure $ Const (Raw.code colAlias, typeName @a)
+
+class (DatabaseType a, Unnestable a, UnnestedBarbie a ~ Singleton a) => UnnestableRowElement a
+instance (DatabaseType a, Unnestable a, UnnestedBarbie a ~ Singleton a) => UnnestableRowElement a
+
+-- | Unnest a singleton array
+unrow ::
+  ( HKD.AllB UnnestableRowElement row
+  , HKD.AllB DatabaseType row
+  , HKD.ConstraintsB row
+  , HKD.TraversableB row
+  , Monoid (row (Const ()))
+  , Same s t
+  ) =>
+  Expr s (Row row) ->
+  Select t (row (Expr s))
+unrow row_ = unnest $ array [row_]
