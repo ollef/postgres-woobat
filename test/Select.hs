@@ -62,6 +62,20 @@ properties =
         result Hedgehog.=== List.sortOn fst (zip xs (reverse xs))
     )
   ,
+    ( "leftJoin"
+    , Hedgehog.property $ do
+        Expr.SomeIntegral gen <- Hedgehog.forAll Expr.genSomeIntegral
+        xs <- Hedgehog.forAll $ Gen.list (Range.linearFrom 0 0 10) gen
+        result <-
+          Hedgehog.evalM $
+            runWoobat $
+              select $ do
+                v <- values $ value <$> xs
+                mv' <- leftJoin (values $ value <$> xs) $ \v' -> v ==. v' + 1
+                pure (v, mv')
+        result Hedgehog.=== leftJoinLists xs xs (\v v' -> v == v' + 1)
+    )
+  ,
     ( "multiple values"
     , Hedgehog.property $ do
         Expr.Some gen <- Hedgehog.forAll Expr.genSome
@@ -125,3 +139,14 @@ properties =
         result Hedgehog.=== [not (List.null xs)]
     )
   ]
+
+leftJoinLists :: [a] -> [b] -> (a -> b -> Bool) -> [(a, Maybe b)]
+leftJoinLists as bs on = do
+  a <- as
+  let bs' = filter (on a) bs
+  case bs' of
+    [] ->
+      pure (a, Nothing)
+    _ -> do
+      b <- bs'
+      pure (a, Just b)
