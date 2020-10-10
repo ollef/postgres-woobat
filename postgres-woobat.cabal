@@ -70,7 +70,6 @@ test-suite postgres-woobat-test
   other-modules:
       Expr
       Select
-      Woobat
       Paths_postgres_woobat
   hs-source-dirs:
       test

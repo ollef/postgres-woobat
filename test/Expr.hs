@@ -26,10 +26,11 @@ import GHC.Generics
 import qualified Hedgehog
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
-import Woobat (runWoobat)
 
-properties :: [(Hedgehog.PropertyName, Hedgehog.Property)]
-properties =
+properties ::
+  (forall a. WoobatT (Hedgehog.PropertyT IO) a -> Hedgehog.PropertyT IO a) ->
+  [(Hedgehog.PropertyName, Hedgehog.Property)]
+properties runWoobat =
   [
     ( "select nothing"
     , Hedgehog.withTests 1 $

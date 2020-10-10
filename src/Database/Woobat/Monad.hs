@@ -33,6 +33,10 @@ runWoobatT :: (MonadIO m, MonadMask m) => ByteString -> WoobatT m a -> m a
 runWoobatT connectionInfo (WoobatT m) =
   bracket (createDefaultEnvironment connectionInfo) destroyEnvironment $ runReaderT m
 
+runWoobatTWithEnvironment :: Environment -> WoobatT m a -> m a
+runWoobatTWithEnvironment env (WoobatT m) =
+  runReaderT m env
+
 data Environment = Environment
   { connectionPool :: !(Pool LibPQ.Connection)
   , ongoingTransaction :: !(Maybe LibPQ.Connection)
