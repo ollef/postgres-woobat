@@ -48,6 +48,20 @@ properties =
         result Hedgehog.=== filter (> cutoff) xs
     )
   ,
+    ( "orderBy"
+    , Hedgehog.property $ do
+        Expr.SomeIntegral gen <- Hedgehog.forAll Expr.genSomeIntegral
+        xs <- Hedgehog.forAll $ Gen.list (Range.linearFrom 0 0 10) gen
+        result <-
+          Hedgehog.evalM $
+            runWoobat $
+              select $ do
+                (v, v') <- values $ zip (value <$> xs) (value <$> reverse xs)
+                orderBy v ascending
+                pure (v, v')
+        result Hedgehog.=== List.sortOn fst (zip xs (reverse xs))
+    )
+  ,
     ( "multiple values"
     , Hedgehog.property $ do
         Expr.Some gen <- Hedgehog.forAll Expr.genSome
