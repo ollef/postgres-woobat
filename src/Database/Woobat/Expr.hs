@@ -363,7 +363,7 @@ row r = do
       barbieRow = toBarbie r
   hkdRow barbieRow
 
-fromJSONRow ::
+fromJSONBRow ::
   ( HKD.AllB FromJSON row
   , HKD.TraversableB row
   , HKD.ConstraintsB row
@@ -371,7 +371,7 @@ fromJSONRow ::
   ) =>
   Expr s (JSONB (Row row)) ->
   row (Expr s)
-fromJSONRow (Expr json) =
+fromJSONBRow (Expr json) =
   flip evalState 1 $ Barbie.btraverseC @FromJSON go mempty
   where
     go :: forall s x. FromJSON x => Const () x -> State Int (Expr s x)
@@ -413,7 +413,7 @@ instance
   ) =>
   FromJSON (Row row)
   where
-  fromJSON = hkdRow . fromJSONRow
+  fromJSON = hkdRow . fromJSONBRow
 
 -------------------------------------------------------------------------------
 
