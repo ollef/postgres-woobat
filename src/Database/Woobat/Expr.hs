@@ -311,8 +311,8 @@ type family NonNestedArray a :: Constraint where
   NonNestedArray [a] =
     ( TypeError
         ( 'Text "Attempt to use a nested list as a database type:"
-            ':<>: 'ShowType [[a]]
-            ':<>: 'Text "Since Woobat maps lists to Postgres arrays and multidimensional Postgres arrays must have matching dimensions, unlike Haskell, nesting is not supported."
+            ':$$: 'ShowType [[a]]
+            ':$$: 'Text "Since Woobat maps lists to Postgres arrays and multidimensional Postgres arrays must have matching dimensions, unlike Haskell, nesting is not supported."
         )
     , Impossible
     )
