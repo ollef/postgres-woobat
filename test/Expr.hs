@@ -361,10 +361,10 @@ genSomeNonNested =
     Gen.choice
     ( [ pure $ SomeNonNested Gen.bool
       , pure $ SomeNonNested unicode
-      , pure $ SomeNonNested $ Gen.text (Range.linearFrom 0 0 10000) unicode
-      , pure $ SomeNonNested $ Text.Lazy.fromStrict <$> Gen.text (Range.linearFrom 0 0 10000) unicode
-      , pure $ SomeNonNested $ Gen.bytes (Range.linearFrom 0 0 10000)
-      , pure $ SomeNonNested $ ByteString.Lazy.fromStrict <$> Gen.bytes (Range.linearFrom 0 0 10000)
+      , pure $ SomeNonNested $ Gen.text (Range.linearFrom 0 0 1000) unicode
+      , pure $ SomeNonNested $ Text.Lazy.fromStrict <$> Gen.text (Range.linearFrom 0 0 1000) unicode
+      , pure $ SomeNonNested $ Gen.bytes (Range.linearFrom 0 0 1000)
+      , pure $ SomeNonNested $ ByteString.Lazy.fromStrict <$> Gen.bytes (Range.linearFrom 0 0 1000)
       , pure $ SomeNonNested genDay
       , pure $ SomeNonNested genTimeOfDay
       , pure $ SomeNonNested $ (,) <$> genTimeOfDay <*> genTimeZone
