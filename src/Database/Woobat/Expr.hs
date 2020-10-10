@@ -210,17 +210,26 @@ count (Expr e) = AggregateExpr $ "COUNT(" <> e <> ")"
 countAll :: AggregateExpr s Int
 countAll = AggregateExpr "COUNT(*)"
 
--- | @AVG()@
-average :: Num a => Expr s a -> AggregateExpr s (Maybe a)
+-- | @AVG(x)@
+average :: Num a => Expr s a -> AggregateExpr s (Maybe (Averaged a))
 average (Expr e) = AggregateExpr $ "AVG(" <> e <> ")"
 
--- | @BOOL_AND()@
-all_ :: Expr s Bool -> AggregateExpr s Bool
-all_ (Expr e) = AggregateExpr $ "BOOL_AND(" <> e <> ")"
+-- | "numeric for any integer-type argument, double precision for a floating-point argument, otherwise the same as the argument data type"
+type family Averaged a where
+  Averaged Int = Scientific
+  Averaged Int16 = Scientific
+  Averaged Int32 = Scientific
+  Averaged Int64 = Scientific
+  Averaged Float = Double
+  Averaged a = a
 
--- | @BOOL_OR()@
-or_ :: Expr s Bool -> AggregateExpr s Bool
-or_ (Expr e) = AggregateExpr $ "BOOL_OR(" <> e <> ")"
+-- | @COALESCE(BOOL_AND(x), TRUE)@
+all_ :: Expr s Bool -> AggregateExpr s Bool
+all_ (Expr e) = fromMaybeAggregate true $ AggregateExpr $ "BOOL_AND(" <> e <> ")"
+
+-- | @COALESCE(BOOL_OR(x), FALSE)@
+any_ :: Expr s Bool -> AggregateExpr s Bool
+any_ (Expr e) = fromMaybeAggregate false $ AggregateExpr $ "BOOL_OR(" <> e <> ")"
 
 -- | @MAX(x)@
 max_ :: Expr s a -> AggregateExpr s (Maybe a)
@@ -230,17 +239,29 @@ max_ (Expr e) = AggregateExpr $ "MAX(" <> e <> ")"
 min_ :: Expr s a -> AggregateExpr s (Maybe a)
 min_ (Expr e) = AggregateExpr $ "MIN(" <> e <> ")"
 
--- | @SUM()@
-sum_ :: (Num a, Num b) => Expr s a -> AggregateExpr s (Maybe b)
-sum_ (Expr e) = AggregateExpr $ "SUM(" <> e <> ")"
+-- | @COALESCE(SUM(x), 0)@
+sum_ :: forall s a. (Num a, Num (Summed a), NonNestedMaybe (Summed a), DatabaseType (Summed a)) => Expr s a -> AggregateExpr s (Summed a)
+sum_ (Expr e) = fromMaybeAggregate 0 $ AggregateExpr $ "SUM(" <> e <> ")"
 
--- | @ARRAY_AGG()@
-arrayAggregate :: NonNestedArray a => Expr s a -> AggregateExpr s [a]
-arrayAggregate (Expr e) = AggregateExpr $ "ARRAY_AGG(" <> e <> ")"
+-- | "bigint for smallint or int arguments, numeric for bigint arguments, otherwise the same as the argument data type"
+type family Summed a where
+  Summed Int = Int64
+  Summed Int16 = Int64
+  Summed Int32 = Int64
+  Summed Int64 = Scientific
+  Summed a = a
 
--- | @JSONB_AGG()@
-jsonAggregate :: Expr s (JSONB a) -> AggregateExpr s (JSONB [a])
-jsonAggregate (Expr e) = AggregateExpr $ "JSONB_AGG(" <> e <> ")"
+-- | @COALESCE(ARRAY_AGG(x), ARRAY[])@
+arrayAggregate :: (NonNestedArray a, DatabaseType a) => Expr s a -> AggregateExpr s [a]
+arrayAggregate (Expr e) = fromMaybeAggregate (array []) $ AggregateExpr $ "ARRAY_AGG(" <> e <> ")"
+
+-- | @JSONB_AGG(x)@
+jsonAggregate :: (NonNestedArray a, DatabaseType a) => Expr s (JSONB a) -> AggregateExpr s (JSONB [a])
+jsonAggregate (Expr e) = fromMaybeAggregate (toJSONB $ array []) $ AggregateExpr $ "JSONB_AGG(" <> e <> ")"
+
+-- | @COALESCE(x, def)@
+fromMaybeAggregate :: NonNestedMaybe a => Expr s a -> AggregateExpr s (Maybe a) -> AggregateExpr s a
+fromMaybeAggregate (Expr def) (AggregateExpr m) = AggregateExpr $ "COALESCE(" <> m <> ", " <> def <> ")"
 
 -------------------------------------------------------------------------------
 

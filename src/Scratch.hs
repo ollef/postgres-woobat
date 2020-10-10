@@ -20,6 +20,7 @@ import Data.Generic.HKD (HKD)
 import qualified Data.Generic.HKD as HKD
 import Data.Generics.Labels ()
 import Data.Generics.Product.Fields (HasField')
+import Data.Int
 import Data.Text (Text)
 import Database.Woobat
 import GHC.Generics hiding (from)
@@ -76,7 +77,7 @@ descriptionQuery = do
 selectDescriptionQuery :: (MonadWoobat m) => m [Text]
 selectDescriptionQuery = select descriptionQuery
 
-countProfiles :: Select s (Expr s Int, Expr s (Maybe Int), Expr s Text, Expr s Bool)
+countProfiles :: Select s (Expr s Int, Expr s Int64, Expr s Text, Expr s Bool)
 countProfiles =
   aggregate $ do
     p <- from profile

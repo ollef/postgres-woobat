@@ -3,6 +3,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -27,7 +28,7 @@ import GHC.Generics
 -------------------------------------------------------------------------------
 
 newtype Singleton a f = Singleton (f a)
-  deriving (Generic)
+  deriving (Generic, Semigroup, Monoid)
 
 instance HKD.FunctorB (Singleton a)
 
