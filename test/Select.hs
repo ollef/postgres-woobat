@@ -13,7 +13,6 @@ import Control.Lens
 import Data.Foldable
 import Data.Generics.Labels ()
 import qualified Data.List as List
-import qualified Data.List.NonEmpty as NonEmpty
 import Database.Woobat
 import qualified Expr
 import qualified Hedgehog
@@ -27,29 +26,29 @@ properties =
     ( "values"
     , Hedgehog.property $ do
         Expr.Some gen <- Hedgehog.forAll Expr.genSome
-        xs <- Hedgehog.forAll $ Gen.nonEmpty (Range.linearFrom 0 0 10) gen
+        xs <- Hedgehog.forAll $ Gen.list (Range.linearFrom 0 0 10) gen
         result <-
           Hedgehog.evalM $
             runWoobat $ select $ values $ value <$> xs
-        result Hedgehog.=== toList xs
+        result Hedgehog.=== xs
     )
   ,
     ( "multiple values"
     , Hedgehog.property $ do
         Expr.Some gen <- Hedgehog.forAll Expr.genSome
-        xs <- Hedgehog.forAll $ Gen.nonEmpty (Range.linearFrom 0 0 10) gen
+        xs <- Hedgehog.forAll $ Gen.list (Range.linearFrom 0 0 10) gen
         result <-
           Hedgehog.evalM $
             runWoobat $
               select $
-                values $ NonEmpty.zip (value <$> xs) (value <$> xs)
+                values $ zip (value <$> xs) (value <$> xs)
         result Hedgehog.=== zip (toList xs) (toList xs)
     )
   ,
     ( "start with leftJoin"
     , Hedgehog.property $ do
         Expr.SomeNonMaybe gen <- Hedgehog.forAll Expr.genSomeNonMaybe
-        xs <- Hedgehog.forAll $ Gen.nonEmpty (Range.linearFrom 0 0 10) gen
+        xs <- Hedgehog.forAll $ Gen.list (Range.linearFrom 0 0 10) gen
         let sameParamAs :: f a -> g a -> g a
             sameParamAs _ ga = ga
         result <-

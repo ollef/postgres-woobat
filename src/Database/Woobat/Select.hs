@@ -27,8 +27,6 @@ import Data.Functor.Product
 import Data.Generic.HKD (HKD)
 import qualified Data.Generic.HKD as HKD
 import Data.Int
-import Data.List.NonEmpty (NonEmpty)
-import qualified Data.List.NonEmpty as NonEmpty
 import Data.Scientific
 import Data.Text (Text)
 import qualified Data.Text.Encoding as Text
@@ -255,32 +253,52 @@ groupBy (Expr expr) = Select $ do
   addSelect mempty {Raw.groupBys = pure $ Raw.unExpr expr usedNames_}
   pure $ AggregateExpr expr
 
-values :: forall s t u a. (Same s t, Same t u, Barbie (Expr (Inner s)) a) => NonEmpty a -> Select t (Outer s a)
-values rows = Select $ do
-  let firstBarbieRow :: ToBarbie (Expr (Inner s)) a (Expr (Inner s))
-      barbieRows :: NonEmpty (ToBarbie (Expr (Inner s)) a (Expr (Inner s)))
-      barbieRows@(firstBarbieRow NonEmpty.:| _) = toBarbie <$> rows
-  rowAlias <- Raw.code <$> freshName "values"
-  aliasesBarbie <- Barbie.btraverse (\_ -> Const <$> freshName "col") firstBarbieRow
-  let aliases = Barbie.bfoldMap (\(Const a) -> [Raw.code a]) aliasesBarbie
-  usedNames_ <- gets usedNames
-  addSelect
-    mempty
-      { Raw.from =
-          Raw.Set
-            ( "(VALUES "
-                <> Raw.separateBy ", " ((\row_ -> "(" <> Raw.separateBy ", " (Barbie.bfoldMap (\(Expr e) -> [Raw.unExpr e usedNames_]) row_) <> ")") <$> barbieRows)
-                <> ")"
-            )
-            ( rowAlias
-                <> "("
-                <> Raw.separateBy ", " aliases
-                <> ")"
-            )
-      }
-  let resultBarbie :: ToBarbie (Expr (Inner s)) a (Expr (Inner s))
-      resultBarbie = Barbie.bmap (\(Const alias) -> Expr $ Raw.codeExpr alias) aliasesBarbie
-  pure $ outer @s @a resultBarbie
+values ::
+  forall s t u a.
+  ( Same s t
+  , Same t u
+  , Barbie (Expr (Inner s)) a
+  , Monoid (ToBarbie (Expr (Inner u)) a (Const ()))
+  , HKD.ConstraintsB (ToBarbie (Expr (Inner u)) a)
+  , HKD.AllB DatabaseType (ToBarbie (Expr (Inner u)) a)
+  ) =>
+  [a] ->
+  Select t (Outer s a)
+values rows = do
+  case rows of
+    [] -> where_ false
+    _ -> pure ()
+  Select $ do
+    let barbieRows :: [ToBarbie (Expr (Inner s)) a (Expr (Inner s))]
+        barbieRows = toBarbie <$> rows
+    rowAlias <- Raw.code <$> freshName "values"
+    aliasesBarbie :: ToBarbie (Expr (Inner s)) a (Const ByteString) <- Barbie.btraverse (\(Const ()) -> Const <$> freshName "col") mempty
+    let aliases = Barbie.bfoldMap (\(Const a) -> [Raw.code a]) aliasesBarbie
+    usedNames_ <- gets usedNames
+    addSelect
+      mempty
+        { Raw.from =
+            Raw.Set
+              ( "(VALUES "
+                  <> ( case barbieRows of
+                        [] -> do
+                          let go :: forall f x. DatabaseType x => f x -> Expr (Inner s) x
+                              go _ = Expr $ "null::" <> typeName @x
+                              nullRow = Barbie.bmapC @DatabaseType go aliasesBarbie
+                          "(" <> Raw.separateBy ", " (Barbie.bfoldMap (\(Expr e) -> [Raw.unExpr e usedNames_]) nullRow) <> ")"
+                        _ -> Raw.separateBy ", " ((\row_ -> "(" <> Raw.separateBy ", " (Barbie.bfoldMap (\(Expr e) -> [Raw.unExpr e usedNames_]) row_) <> ")") <$> barbieRows)
+                     )
+                  <> ")"
+              )
+              ( rowAlias
+                  <> "("
+                  <> Raw.separateBy ", " aliases
+                  <> ")"
+              )
+        }
+    let resultBarbie :: ToBarbie (Expr (Inner s)) a (Expr (Inner s))
+        resultBarbie = Barbie.bmap (\(Const alias) -> Expr $ Raw.codeExpr alias) aliasesBarbie
+    pure $ outer @s @a resultBarbie
 
 -- | @UNNEST@
 unnest ::
