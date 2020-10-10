@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuantifiedConstraints #-}
@@ -253,6 +254,17 @@ data SomeIntegral where
     , Nullable a ~ Maybe a
     , NonNestedArray a
     , UnnestableRowElement a
+    , DatabaseType (Summed a)
+    , NonNestedMaybe (Summed a)
+    , Num (Summed a)
+    , Eq (Summed a)
+    , Show (Summed a)
+    , DatabaseType (Averaged a)
+    , NonNestedMaybe (Averaged a)
+    , Num (Averaged a)
+    , Eq (Averaged a)
+    , Show (Averaged a)
+    , RealFrac (Averaged a)
     ) =>
     Hedgehog.Gen a ->
     SomeIntegral

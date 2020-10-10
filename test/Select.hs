@@ -13,6 +13,7 @@ import Control.Lens
 import Data.Foldable
 import Data.Generics.Labels ()
 import qualified Data.List as List
+import Data.Ratio
 import Database.Woobat
 import qualified Expr
 import qualified Hedgehog
@@ -74,6 +75,47 @@ properties =
                 mv' <- leftJoin (values $ value <$> xs) $ \v' -> v ==. v' + 1
                 pure (v, mv')
         result Hedgehog.=== leftJoinLists xs xs (\v v' -> v == v' + 1)
+    )
+  ,
+    ( "aggregate"
+    , Hedgehog.property $ do
+        Expr.SomeIntegral gen <- Hedgehog.forAll Expr.genSomeIntegral
+        xs <- Hedgehog.forAll $ Gen.list (Range.linearFrom 0 0 10) gen
+        result <-
+          Hedgehog.evalM $
+            runWoobat $
+              select $
+                aggregate $ do
+                  v <- values $ value <$> xs
+                  pure ((count v, countAll), (all_ $ v ==. 0, any_ $ v ==. 0), (max_ v, min_ v), sum_ v, arrayAggregate v)
+        result
+          Hedgehog.=== [
+                         ( (length xs, length xs)
+                         , (all (== 0) xs, any (== 0) xs)
+                         , if null xs
+                            then (Nothing, Nothing)
+                            else (Just $ maximum xs, Just $ minimum xs)
+                         , sum $ fromIntegral <$> xs
+                         , xs
+                         )
+                       ]
+    )
+  ,
+    ( "aggregate average"
+    , Hedgehog.property $ do
+        Expr.SomeIntegral gen <- Hedgehog.forAll Expr.genSomeIntegral
+        xs <- Hedgehog.forAll $ Gen.list (Range.linearFrom 0 0 10) gen
+        result <-
+          Hedgehog.evalM $
+            runWoobat $
+              select $
+                aggregate $ do
+                  v <- values $ value <$> xs
+                  pure $ average v
+        let result' :: [Maybe Integer]
+            result' = fmap round <$> result
+        result'
+          Hedgehog.=== [if null xs then Nothing else Just $ round $ (sum (fromIntegral <$> xs) :: Integer) % fromIntegral (length xs)]
     )
   ,
     ( "multiple values"
