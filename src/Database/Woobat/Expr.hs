@@ -154,7 +154,7 @@ true = value True
 false :: Expr s Bool
 false = value False
 
--- | @NOT()@
+-- | @NOT(x)@
 not_ :: Expr s Bool -> Expr s Bool
 not_ (Expr e) = Expr $ "NOT(" <> e <> ")"
 
@@ -192,11 +192,11 @@ infixr 2 ||.
 
 infix 4 <., <=., >., >=.
 
--- @GREATEST()@
+-- @GREATEST(xs)@
 maximum_ :: NonEmpty (Expr s a) -> Expr s a
 maximum_ args = Expr $ "GREATEST(" <> Raw.separateBy ", " (coerce <$> toList args) <> ")"
 
--- @LEAST()@
+-- @LEAST(xs)@
 minimum_ :: NonEmpty (Expr s a) -> Expr s a
 minimum_ args = Expr $ "LEAST(" <> Raw.separateBy ", " (coerce <$> toList args) <> ")"
 -------------------------------------------------------------------------------
@@ -222,11 +222,11 @@ all_ (Expr e) = AggregateExpr $ "BOOL_AND(" <> e <> ")"
 or_ :: Expr s Bool -> AggregateExpr s Bool
 or_ (Expr e) = AggregateExpr $ "BOOL_OR(" <> e <> ")"
 
--- | @MAX()@
+-- | @MAX(x)@
 max_ :: Expr s a -> AggregateExpr s (Maybe a)
 max_ (Expr e) = AggregateExpr $ "MAX(" <> e <> ")"
 
--- | @MIN()@
+-- | @MIN(x)@
 min_ :: Expr s a -> AggregateExpr s (Maybe a)
 min_ (Expr e) = AggregateExpr $ "MIN(" <> e <> ")"
 
@@ -432,18 +432,18 @@ nothing = Expr $ "null::" <> typeName @a
 just :: (NonNestedMaybe a, DatabaseType a) => Expr s a -> Expr s (Maybe a)
 just = coerce
 
--- | @IS NOT DISTINCT FROM null@
+-- | @x IS NOT DISTINCT FROM null@
 isNothing_ :: DatabaseType a => Expr s (Maybe a) -> Expr s Bool
 isNothing_ e = e ==. nothing
 
--- | @IS DISTINCT FROM null@
+-- | @x IS DISTINCT FROM null@
 isJust_ :: DatabaseType a => Expr s (Maybe a) -> Expr s Bool
 isJust_ e = e /=. nothing
 
 maybe_ :: (NonNestedMaybe a, DatabaseType a) => Expr s b -> (Expr s a -> Expr s b) -> Expr s (Maybe a) -> Expr s b
 maybe_ def f m = ifThenElse (isNothing_ m) def (f $ coerce m)
 
--- | @COALESCE()@
+-- | @COALESCE(x, def)@
 fromMaybe_ :: NonNestedMaybe a => Expr s a -> Expr s (Maybe a) -> Expr s a
 fromMaybe_ (Expr def) (Expr m) = Expr $ "COALESCE(" <> m <> ", " <> def <> ")"
 
@@ -474,7 +474,7 @@ type family NonNestedMaybe a :: Constraint where
 
 -- * Subqueries
 
--- | @EXISTS()@
+-- | @EXISTS(s)@
 exists :: Select s a -> Expr s Bool
 exists select = Expr $
   Raw.Expr $ \usedNames_ -> do
