@@ -272,6 +272,12 @@ array exprs =
   Expr $
     "ARRAY[" <> Raw.separateBy ", " (coerce <$> exprs) <> "]::" <> typeName @[a]
 
+arrayOf :: (NonNestedArray a, Scope.Same s t) => Select s (Expr t a) -> Expr t [a]
+arrayOf select = Expr $
+  Raw.Expr $ \usedNames_ -> do
+    let (Expr expr, st) = run usedNames_ select
+    "ARRAY(" <> compileSelect [Raw.unExpr expr $ usedNames st] (rawSelect st) <> ")"
+
 instance Semigroup (Expr s [a]) where
   (<>) = unsafeBinaryOperator "||"
 
