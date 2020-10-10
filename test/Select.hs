@@ -33,6 +33,21 @@ properties =
         result Hedgehog.=== xs
     )
   ,
+    ( "where_"
+    , Hedgehog.property $ do
+        Expr.SomeIntegral gen <- Hedgehog.forAll Expr.genSomeIntegral
+        cutoff <- Hedgehog.forAll gen
+        xs <- Hedgehog.forAll $ Gen.list (Range.linearFrom 0 0 10) gen
+        result <-
+          Hedgehog.evalM $
+            runWoobat $
+              select $ do
+                v <- values $ value <$> xs
+                where_ $ v >. value cutoff
+                pure v
+        result Hedgehog.=== filter (> cutoff) xs
+    )
+  ,
     ( "multiple values"
     , Hedgehog.property $ do
         Expr.Some gen <- Hedgehog.forAll Expr.genSome
