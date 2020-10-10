@@ -104,7 +104,7 @@ properties =
     ( "aggregate average"
     , Hedgehog.property $ do
         Expr.SomeIntegral gen <- Hedgehog.forAll Expr.genSomeIntegral
-        xs <- Hedgehog.forAll $ Gen.list (Range.linearFrom 0 0 10) gen
+        xs <- Hedgehog.forAll $ Gen.list (Range.linearFrom 0 0 10) $ Gen.small gen
         result <-
           Hedgehog.evalM $
             runWoobat $
