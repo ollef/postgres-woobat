@@ -308,10 +308,8 @@ instance (NonNestedArray a, DatabaseType a) => DatabaseType [a] where
           NullableDecoder d -> Decoding.nullableValueArray d
 
 instance (NonNestedArray a, FromJSON a) => FromJSON [a] where
-  fromJSON (Expr json) =
-    Expr $
-      -- TODO needs fresh names
-      "ARRAY(SELECT " <> coerce (fromJSON @a $ Expr "element.value") <> " FROM JSONB_ARRAY_ELEMENTS(" <> json <> ") AS element)"
+  fromJSON expr =
+    arrayOf $ fromJSON <$> jsonbArrayElements expr
 
 type family NonNestedArray a :: Constraint where
   NonNestedArray [a] =
