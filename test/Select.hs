@@ -180,6 +180,18 @@ properties =
                 pure $ exists $ unnest (value xs)
         result Hedgehog.=== [not (List.null xs)]
     )
+  ,
+    ( "arrayOf"
+    , Hedgehog.property $ do
+        Expr.SomeNonArray gen <- Hedgehog.forAll Expr.genSomeNonArray
+        xs <- Hedgehog.forAll $ Gen.list (Range.linearFrom 0 0 10) gen
+        result <-
+          Hedgehog.evalM $
+            runWoobat $
+              select $
+                pure $ arrayOf $ values $ value <$> xs
+        result Hedgehog.=== [xs]
+    )
   ]
 
 leftJoinLists :: [a] -> [b] -> (a -> b -> Bool) -> [(a, Maybe b)]
