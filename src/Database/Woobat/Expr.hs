@@ -448,6 +448,13 @@ toJSONB (Expr e) = case decoder @a of
   NullableDecoder _ ->
     -- The row here means that we get a non-null JSONB containing null for a null input instead of a null JSONB
     Expr $ "(TO_JSONB(ROW(" <> e <> "))->'f1')"
+
+jsonbArrayElements :: Scope.Same s t => Expr s (JSONB [a]) -> Select t (Expr s (JSONB a))
+jsonbArrayElements (Expr arr) = Select $ do
+  returnAlias <- Raw.code <$> freshName "array_element"
+  usedNames_ <- gets usedNames
+  addSelect mempty {Raw.from = Raw.Set ("jsonb_array_elements(" <> Raw.unExpr arr usedNames_ <> ")") returnAlias}
+  pure $ Expr $ Raw.Expr $ const returnAlias
 -------------------------------------------------------------------------------
 
 -- * Nullable types
