@@ -6,6 +6,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -18,7 +19,7 @@ import qualified Data.Barbie as Barbie
 import qualified Data.Barbie.Constraints as Barbie
 import Data.Coerce
 import Data.Functor.Identity
-import Data.Functor.Product
+import qualified Data.Functor.Product as Functor
 import Data.Generic.HKD (HKD)
 import qualified Data.Generic.HKD as HKD
 import Database.Woobat.Expr.Types
@@ -27,14 +28,35 @@ import GHC.Generics
 
 -------------------------------------------------------------------------------
 
-newtype Singleton a f = Singleton (f a)
-  deriving (Generic, Semigroup, Monoid)
+newtype Singleton (a :: *) f = Singleton (f a)
+  deriving (Eq, Ord, Show, Read, Generic, Semigroup, Monoid)
 
 instance HKD.FunctorB (Singleton a)
 
 instance HKD.TraversableB (Singleton a)
 
 instance HKD.ConstraintsB (Singleton a)
+
+-------------------------------------------------------------------------------
+
+data Product f g a = Product (f a) (g a)
+  deriving (Eq, Ord, Show, Read, Generic)
+
+instance (Semigroup (f a), Semigroup (g a)) => Semigroup (Product f g a) where
+  Product fa1 ga1 <> Product fa2 ga2 = Product (fa1 <> fa2) (ga1 <> ga2)
+
+instance (Monoid (f a), Monoid (g a)) => Monoid (Product f g a) where
+  mempty = Product mempty mempty
+
+instance (HKD.FunctorB f, HKD.FunctorB g) => HKD.FunctorB (Product f g) where
+  bmap f (Product x y) = Product (HKD.bmap f x) (HKD.bmap f y)
+
+instance (HKD.TraversableB f, HKD.TraversableB g) => HKD.TraversableB (Product f g) where
+  btraverse f (Product x y) = Product <$> HKD.btraverse f x <*> HKD.btraverse f y
+
+instance (HKD.ConstraintsB f, HKD.ConstraintsB g) => HKD.ConstraintsB (Product f g) where
+  type AllB c (Product f g) = (HKD.AllB c f, HKD.AllB c g)
+  baddDicts (Product x y) = Product (HKD.baddDicts x) (HKD.baddDicts y)
 
 -------------------------------------------------------------------------------
 
@@ -50,10 +72,10 @@ instance HKD.ConstraintsB hkd => HKD.ConstraintsB (NullableHKD hkd) where
     forall c f.
     HKD.AllB c (NullableHKD hkd) =>
     NullableHKD hkd f ->
-    NullableHKD hkd (Product (Barbie.Dict c) f)
+    NullableHKD hkd (Functor.Product (Barbie.Dict c) f)
   baddDicts (NullableHKD hkd) =
     NullableHKD $
-      HKD.bmap (\(Pair Barbie.Dict (NullableF a)) -> NullableF (Pair Barbie.Dict a)) $
+      HKD.bmap (\(Functor.Pair Barbie.Dict (NullableF a)) -> NullableF (Functor.Pair Barbie.Dict a)) $
         HKD.baddDicts @_ @_ @(ConstrainNullable c) hkd
 
 instance HKD.FunctorB hkd => HKD.FunctorB (NullableHKD hkd) where
@@ -117,44 +139,44 @@ instance HKD.TraversableB (HKD table) => Barbie f (HKD table (NullableF f)) wher
 instance (Barbie f a, Barbie f b) => Barbie f (a, b) where
   type ToBarbie f (a, b) = Product (ToBarbie f a) (ToBarbie f b)
   type FromBarbie f (a, b) g = (FromBarbie f a g, FromBarbie f b g)
-  toBarbie (a, b) = Pair (toBarbie a) (toBarbie b)
-  fromBarbie (Pair a b) = (fromBarbie @f @a a, fromBarbie @f @b b)
+  toBarbie (a, b) = Product (toBarbie a) (toBarbie b)
+  fromBarbie (Product a b) = (fromBarbie @f @a a, fromBarbie @f @b b)
 
 instance (Barbie f a, Barbie f b, Barbie f c) => Barbie f (a, b, c) where
   type ToBarbie f (a, b, c) = Product (Product (ToBarbie f a) (ToBarbie f b)) (ToBarbie f c)
   type FromBarbie f (a, b, c) g = (FromBarbie f a g, FromBarbie f b g, FromBarbie f c g)
-  toBarbie (a, b, c) = Pair (Pair (toBarbie a) (toBarbie b)) (toBarbie c)
-  fromBarbie (Pair (Pair a b) c) = (fromBarbie @f @a a, fromBarbie @f @b b, fromBarbie @f @c c)
+  toBarbie (a, b, c) = Product (Product (toBarbie a) (toBarbie b)) (toBarbie c)
+  fromBarbie (Product (Product a b) c) = (fromBarbie @f @a a, fromBarbie @f @b b, fromBarbie @f @c c)
 
 instance (Barbie f a, Barbie f b, Barbie f c, Barbie f d) => Barbie f (a, b, c, d) where
   type ToBarbie f (a, b, c, d) = Product (Product (ToBarbie f a) (ToBarbie f b)) (Product (ToBarbie f c) (ToBarbie f d))
   type FromBarbie f (a, b, c, d) g = (FromBarbie f a g, FromBarbie f b g, FromBarbie f c g, FromBarbie f d g)
-  toBarbie (a, b, c, d) = Pair (Pair (toBarbie a) (toBarbie b)) (Pair (toBarbie c) (toBarbie d))
-  fromBarbie (Pair (Pair a b) (Pair c d)) = (fromBarbie @f @a a, fromBarbie @f @b b, fromBarbie @f @c c, fromBarbie @f @d d)
+  toBarbie (a, b, c, d) = Product (Product (toBarbie a) (toBarbie b)) (Product (toBarbie c) (toBarbie d))
+  fromBarbie (Product (Product a b) (Product c d)) = (fromBarbie @f @a a, fromBarbie @f @b b, fromBarbie @f @c c, fromBarbie @f @d d)
 
 instance (Barbie f a, Barbie f b, Barbie f c, Barbie f d, Barbie f e) => Barbie f (a, b, c, d, e) where
   type ToBarbie f (a, b, c, d, e) = Product (Product (Product (ToBarbie f a) (ToBarbie f b)) (Product (ToBarbie f c) (ToBarbie f d))) (ToBarbie f e)
   type FromBarbie f (a, b, c, d, e) g = (FromBarbie f a g, FromBarbie f b g, FromBarbie f c g, FromBarbie f d g, FromBarbie f e g)
-  toBarbie (a, b, c, d, e) = Pair (Pair (Pair (toBarbie a) (toBarbie b)) (Pair (toBarbie c) (toBarbie d))) (toBarbie e)
-  fromBarbie (Pair (Pair (Pair a b) (Pair c d)) e) = (fromBarbie @f @a a, fromBarbie @f @b b, fromBarbie @f @c c, fromBarbie @f @d d, fromBarbie @f @e e)
+  toBarbie (a, b, c, d, e) = Product (Product (Product (toBarbie a) (toBarbie b)) (Product (toBarbie c) (toBarbie d))) (toBarbie e)
+  fromBarbie (Product (Product (Product a b) (Product c d)) e) = (fromBarbie @f @a a, fromBarbie @f @b b, fromBarbie @f @c c, fromBarbie @f @d d, fromBarbie @f @e e)
 
 instance (Barbie f a, Barbie f b, Barbie f c, Barbie f d, Barbie f e, Barbie f a1) => Barbie f (a, b, c, d, e, a1) where
   type ToBarbie f (a, b, c, d, e, a1) = Product (Product (Product (ToBarbie f a) (ToBarbie f b)) (Product (ToBarbie f c) (ToBarbie f d))) (Product (ToBarbie f e) (ToBarbie f a1))
   type FromBarbie f (a, b, c, d, e, a1) g = (FromBarbie f a g, FromBarbie f b g, FromBarbie f c g, FromBarbie f d g, FromBarbie f e g, FromBarbie f a1 g)
-  toBarbie (a, b, c, d, e, a1) = Pair (Pair (Pair (toBarbie a) (toBarbie b)) (Pair (toBarbie c) (toBarbie d))) (Pair (toBarbie e) (toBarbie a1))
-  fromBarbie (Pair (Pair (Pair a b) (Pair c d)) (Pair e a1)) = (fromBarbie @f @a a, fromBarbie @f @b b, fromBarbie @f @c c, fromBarbie @f @d d, fromBarbie @f @e e, fromBarbie @f @a1 a1)
+  toBarbie (a, b, c, d, e, a1) = Product (Product (Product (toBarbie a) (toBarbie b)) (Product (toBarbie c) (toBarbie d))) (Product (toBarbie e) (toBarbie a1))
+  fromBarbie (Product (Product (Product a b) (Product c d)) (Product e a1)) = (fromBarbie @f @a a, fromBarbie @f @b b, fromBarbie @f @c c, fromBarbie @f @d d, fromBarbie @f @e e, fromBarbie @f @a1 a1)
 
 instance (Barbie f a, Barbie f b, Barbie f c, Barbie f d, Barbie f e, Barbie f a1, Barbie f b1) => Barbie f (a, b, c, d, e, a1, b1) where
   type ToBarbie f (a, b, c, d, e, a1, b1) = Product (Product (Product (ToBarbie f a) (ToBarbie f b)) (Product (ToBarbie f c) (ToBarbie f d))) (Product (Product (ToBarbie f e) (ToBarbie f a1)) (ToBarbie f b1))
   type FromBarbie f (a, b, c, d, e, a1, b1) g = (FromBarbie f a g, FromBarbie f b g, FromBarbie f c g, FromBarbie f d g, FromBarbie f e g, FromBarbie f a1 g, FromBarbie f b1 g)
-  toBarbie (a, b, c, d, e, a1, b1) = Pair (Pair (Pair (toBarbie a) (toBarbie b)) (Pair (toBarbie c) (toBarbie d))) (Pair (Pair (toBarbie e) (toBarbie a1)) (toBarbie b1))
-  fromBarbie (Pair (Pair (Pair a b) (Pair c d)) (Pair (Pair e a1) b1)) = (fromBarbie @f @a a, fromBarbie @f @b b, fromBarbie @f @c c, fromBarbie @f @d d, fromBarbie @f @e e, fromBarbie @f @a1 a1, fromBarbie @f @b1 b1)
+  toBarbie (a, b, c, d, e, a1, b1) = Product (Product (Product (toBarbie a) (toBarbie b)) (Product (toBarbie c) (toBarbie d))) (Product (Product (toBarbie e) (toBarbie a1)) (toBarbie b1))
+  fromBarbie (Product (Product (Product a b) (Product c d)) (Product (Product e a1) b1)) = (fromBarbie @f @a a, fromBarbie @f @b b, fromBarbie @f @c c, fromBarbie @f @d d, fromBarbie @f @e e, fromBarbie @f @a1 a1, fromBarbie @f @b1 b1)
 
 instance (Barbie f a, Barbie f b, Barbie f c, Barbie f d, Barbie f e, Barbie f a1, Barbie f b1, Barbie f c1) => Barbie f (a, b, c, d, e, a1, b1, c1) where
   type ToBarbie f (a, b, c, d, e, a1, b1, c1) = Product (Product (Product (ToBarbie f a) (ToBarbie f b)) (Product (ToBarbie f c) (ToBarbie f d))) (Product (Product (ToBarbie f e) (ToBarbie f a1)) (Product (ToBarbie f b1) (ToBarbie f c1)))
   type FromBarbie f (a, b, c, d, e, a1, b1, c1) g = (FromBarbie f a g, FromBarbie f b g, FromBarbie f c g, FromBarbie f d g, FromBarbie f e g, FromBarbie f a1 g, FromBarbie f b1 g, FromBarbie f c1 g)
-  toBarbie (a, b, c, d, e, a1, b1, c1) = Pair (Pair (Pair (toBarbie a) (toBarbie b)) (Pair (toBarbie c) (toBarbie d))) (Pair (Pair (toBarbie e) (toBarbie a1)) (Pair (toBarbie b1) (toBarbie c1)))
-  fromBarbie (Pair (Pair (Pair a b) (Pair c d)) (Pair (Pair e a1) (Pair b1 c1))) = (fromBarbie @f @a a, fromBarbie @f @b b, fromBarbie @f @c c, fromBarbie @f @d d, fromBarbie @f @e e, fromBarbie @f @a1 a1, fromBarbie @f @b1 b1, fromBarbie @f @c1 c1)
+  toBarbie (a, b, c, d, e, a1, b1, c1) = Product (Product (Product (toBarbie a) (toBarbie b)) (Product (toBarbie c) (toBarbie d))) (Product (Product (toBarbie e) (toBarbie a1)) (Product (toBarbie b1) (toBarbie c1)))
+  fromBarbie (Product (Product (Product a b) (Product c d)) (Product (Product e a1) (Product b1 c1))) = (fromBarbie @f @a a, fromBarbie @f @b b, fromBarbie @f @c c, fromBarbie @f @d d, fromBarbie @f @e e, fromBarbie @f @a1 a1, fromBarbie @f @b1 b1, fromBarbie @f @c1 c1)
 
 -------------------------------------------------------------------------------
 

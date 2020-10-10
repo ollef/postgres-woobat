@@ -23,7 +23,6 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as Lazy
 import Data.Functor.Const (Const (Const))
 import Data.Functor.Identity
-import Data.Functor.Product
 import Data.Generic.HKD (HKD)
 import qualified Data.Generic.HKD as HKD
 import Data.Int
@@ -190,12 +189,12 @@ leftJoin (Select sel) on = Select $ do
         HKD.btraverse
           ( \e -> do
               name <- freshName "col"
-              pure $ Pair (Const name) e
+              pure $ Product (Const name) e
           )
           innerResultsBarbie
       let outerResults :: ToBarbie (Expr (Inner s)) a (Expr (Inner s))
           outerResults =
-            HKD.bmap (\(Pair (Const name) _) -> Expr $ Raw.codeExpr $ alias <> "." <> name) namedResults
+            HKD.bmap (\(Product (Const name) _) -> Expr $ Raw.codeExpr $ alias <> "." <> name) namedResults
           Expr rawOn =
             on $ outer @s @a outerResults
       modify $ \s ->
@@ -207,7 +206,7 @@ leftJoin (Select sel) on = Select $ do
                       leftFrom'
                       (Raw.unExpr rawOn usedNames_)
                       ( Raw.Subquery
-                          (Barbie.bfoldMap (\(Pair (Const name) (Expr e)) -> pure (Raw.unExpr e usedNames_, name)) namedResults)
+                          (Barbie.bfoldMap (\(Product (Const name) (Expr e)) -> pure (Raw.unExpr e usedNames_, name)) namedResults)
                           rightSelect
                           alias
                       )
@@ -228,17 +227,17 @@ aggregate (Select sel) = Select $ do
     HKD.btraverse
       ( \e -> do
           name <- freshName "col"
-          pure $ Pair (Const name) e
+          pure $ Product (Const name) e
       )
       (toBarbie innerResults)
   let outerResults :: ToBarbie (AggregateExpr (Inner s)) a (Expr (Inner s))
       outerResults =
-        HKD.bmap (\(Pair (Const name) _) -> Expr $ Raw.codeExpr $ alias <> "." <> name) namedResults
+        HKD.bmap (\(Product (Const name) _) -> Expr $ Raw.codeExpr $ alias <> "." <> name) namedResults
   addSelect
     mempty
       { Raw.from =
           Raw.Subquery
-            (Barbie.bfoldMap (\(Pair (Const name) (AggregateExpr e)) -> pure (Raw.unExpr e usedNames_, name)) namedResults)
+            (Barbie.bfoldMap (\(Product (Const name) (AggregateExpr e)) -> pure (Raw.unExpr e usedNames_, name)) namedResults)
             aggSelect
             alias
       }
