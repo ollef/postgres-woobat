@@ -407,12 +407,18 @@ genSomeNum =
     ]
 
 genSomeIntegral :: Hedgehog.MonadGen m => m SomeIntegral
-genSomeIntegral =
+genSomeIntegral = genSomeRangedIntegral Range.linearBounded
+
+genSomeRangedIntegral ::
+  Hedgehog.MonadGen m =>
+  (forall a. (Bounded a, Integral a) => Hedgehog.Range a) ->
+  m SomeIntegral
+genSomeRangedIntegral range =
   Gen.element
-    [ SomeIntegral $ Gen.int (fromIntegral <$> Range.linearBounded @Int16)
-    , SomeIntegral $ Gen.int16 Range.linearBounded
-    , SomeIntegral $ Gen.int32 Range.linearBounded
-    , SomeIntegral $ Gen.int64 Range.linearBounded
+    [ SomeIntegral $ Gen.int (fromIntegral <$> range @Int16)
+    , SomeIntegral $ Gen.int16 range
+    , SomeIntegral $ Gen.int32 range
+    , SomeIntegral $ Gen.int64 range
     ]
 
 overflows :: Integral b => (forall a. Num a => a -> a -> a) -> b -> b -> Bool

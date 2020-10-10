@@ -104,8 +104,8 @@ properties runWoobat =
   ,
     ( "aggregate average"
     , Hedgehog.property $ do
-        Expr.SomeIntegral gen <- Hedgehog.forAll Expr.genSomeIntegral
-        xs <- Hedgehog.forAll $ Gen.list (Range.linearFrom 0 0 10) $ Gen.small gen
+        Expr.SomeIntegral gen <- Hedgehog.forAll $ Expr.genSomeRangedIntegral $ Range.linearFrom 0 (-1000) 1000
+        xs <- Hedgehog.forAll (Gen.list (Range.linearFrom 0 0 10) gen)
         result <-
           Hedgehog.evalM $
             runWoobat $
@@ -113,10 +113,10 @@ properties runWoobat =
                 aggregate $ do
                   v <- values $ value <$> xs
                   pure $ average v
-        let result' :: [Maybe Integer]
-            result' = fmap round <$> result
-        result'
-          Hedgehog.=== [if null xs then Nothing else Just $ round $ (sum (fromIntegral <$> xs) :: Integer) % fromIntegral (length xs)]
+        let result' = fmap round <$> result
+            expected :: Ratio Integer
+            expected = sum (fromIntegral <$> xs) % fromIntegral (length xs)
+        result' Hedgehog.=== [if null xs then Nothing else Just (round expected :: Integer)]
     )
   ,
     ( "multiple values"
