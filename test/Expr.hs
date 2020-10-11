@@ -360,23 +360,22 @@ genSomeNonNested :: Hedgehog.MonadGen m => m SomeNonNested
 genSomeNonNested =
   Gen.recursive
     Gen.choice
-    ( [ pure $ SomeNonNested Gen.bool
-      , pure $ SomeNonNested unicode
-      , pure $ SomeNonNested $ Gen.text (Range.linearFrom 0 0 1000) unicode
-      , pure $ SomeNonNested $ Text.Lazy.fromStrict <$> Gen.text (Range.linearFrom 0 0 1000) unicode
-      , pure $ SomeNonNested $ Gen.bytes (Range.linearFrom 0 0 1000)
-      , pure $ SomeNonNested $ ByteString.Lazy.fromStrict <$> Gen.bytes (Range.linearFrom 0 0 1000)
-      , pure $ SomeNonNested genDay
-      , pure $ SomeNonNested genTimeOfDay
-      , pure $ SomeNonNested $ (,) <$> genTimeOfDay <*> genTimeZone
-      , pure $ SomeNonNested genLocalTime
-      , pure $ SomeNonNested genUTCTime
-      , pure $ SomeNonNested genDiffTime
-      , do
-          SomeNum x <- genSomeNum
-          pure $ SomeNonNested x
-      ]
-    )
+    [ pure $ SomeNonNested Gen.bool
+    , pure $ SomeNonNested unicode
+    , pure $ SomeNonNested $ Gen.text (Range.linearFrom 0 0 1000) unicode
+    , pure $ SomeNonNested $ Text.Lazy.fromStrict <$> Gen.text (Range.linearFrom 0 0 1000) unicode
+    , pure $ SomeNonNested $ Gen.bytes (Range.linearFrom 0 0 1000)
+    , pure $ SomeNonNested $ ByteString.Lazy.fromStrict <$> Gen.bytes (Range.linearFrom 0 0 1000)
+    , pure $ SomeNonNested genDay
+    , pure $ SomeNonNested genTimeOfDay
+    , pure $ SomeNonNested $ (,) <$> genTimeOfDay <*> genTimeZone
+    , pure $ SomeNonNested genLocalTime
+    , pure $ SomeNonNested genUTCTime
+    , pure $ SomeNonNested genDiffTime
+    , do
+        SomeNum x <- genSomeNum
+        pure $ SomeNonNested x
+    ]
     [ do
         Some gena <- genSome
         Some genb <- genSome
