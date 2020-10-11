@@ -348,7 +348,8 @@ instance
     usedNames_ <- gets usedNames
     let returnRowList = Barbie.bfoldMap (\(Const (colAlias, typeName_)) -> [colAlias <> " " <> Raw.unExpr typeName_ usedNames_]) returnRow
         result = Barbie.bmap (\(Const (colAlias, _)) -> Expr $ Raw.Expr $ const colAlias) returnRow
-    pure ("(" <> Raw.separateBy ", " returnRowList <> ")", result)
+    alias <- Raw.code <$> freshName "unnested"
+    pure (alias <> "(" <> Raw.separateBy ", " returnRowList <> ")", result)
     where
       go :: forall a. UnnestableRowElement a => Const () a -> State SelectState (Const (Raw.SQL, Raw.Expr) a)
       go (Const ()) = do
