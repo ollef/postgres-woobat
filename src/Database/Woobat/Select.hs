@@ -169,50 +169,35 @@ leftJoin (Select sel) on = Select $ do
   leftFrom <- gets $ Raw.from . rawSelect
   leftFrom' <- mapM (\() -> freshName "unit") leftFrom
   usedNames_ <- gets usedNames
-  case rightSelect of
-    Raw.Select rightFrom Raw.Empty Raw.Empty Raw.Empty -> do
-      let Expr rawOn =
-            on $ outer @s @a innerResultsBarbie
-      rightFrom' <- mapM (\() -> freshName "unit") rightFrom
-      modify $ \s ->
-        s
-          { rawSelect =
-              (rawSelect s)
-                { Raw.from =
-                    Raw.LeftJoin leftFrom' (Raw.unExpr rawOn usedNames_) rightFrom'
-                }
-          }
-      return $ left @s @a innerResultsBarbie
-    _ -> do
-      alias <- freshName "subquery"
-      namedResults :: ToBarbie (Expr (Inner s)) a (Product (Const ByteString) (Expr (Inner s))) <-
-        HKD.btraverse
-          ( \e -> do
-              name <- freshName "col"
-              pure $ Product (Const name) e
-          )
-          innerResultsBarbie
-      let outerResults :: ToBarbie (Expr (Inner s)) a (Expr (Inner s))
-          outerResults =
-            HKD.bmap (\(Product (Const name) _) -> Expr $ Raw.codeExpr $ alias <> "." <> name) namedResults
-          Expr rawOn =
-            on $ outer @s @a outerResults
-      modify $ \s ->
-        s
-          { rawSelect =
-              (rawSelect s)
-                { Raw.from =
-                    Raw.LeftJoin
-                      leftFrom'
-                      (Raw.unExpr rawOn usedNames_)
-                      ( Raw.Subquery
-                          (Barbie.bfoldMap (\(Product (Const name) (Expr e)) -> pure (Raw.unExpr e usedNames_, name)) namedResults)
-                          rightSelect
-                          alias
-                      )
-                }
-          }
-      return $ left @s @a outerResults
+  alias <- freshName "subquery"
+  namedResults :: ToBarbie (Expr (Inner s)) a (Product (Const ByteString) (Expr (Inner s))) <-
+    HKD.btraverse
+      ( \e -> do
+          name <- freshName "col"
+          pure $ Product (Const name) e
+      )
+      innerResultsBarbie
+  let outerResults :: ToBarbie (Expr (Inner s)) a (Expr (Inner s))
+      outerResults =
+        HKD.bmap (\(Product (Const name) _) -> Expr $ Raw.codeExpr $ alias <> "." <> name) namedResults
+      Expr rawOn =
+        on $ outer @s @a outerResults
+  modify $ \s ->
+    s
+      { rawSelect =
+          (rawSelect s)
+            { Raw.from =
+                Raw.LeftJoin
+                  leftFrom'
+                  (Raw.unExpr rawOn usedNames_)
+                  ( Raw.Subquery
+                      (Barbie.bfoldMap (\(Product (Const name) (Expr e)) -> pure (Raw.unExpr e usedNames_, name)) namedResults)
+                      rightSelect
+                      alias
+                  )
+            }
+      }
+  return $ left @s @a outerResults
 
 aggregate ::
   forall a s t.
