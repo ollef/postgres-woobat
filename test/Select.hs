@@ -75,7 +75,10 @@ properties runWoobat =
                 v <- values $ value <$> xs
                 mv' <- leftJoin (values $ value <$> xs) $ \v' -> v ==. v' + 1
                 pure (v, mv')
-        result Hedgehog.=== leftJoinLists xs xs (\v v' -> v == v' + 1)
+        result Hedgehog.=== do
+          v <- xs
+          mv <- leftJoinList xs $ \v' -> v == v' + 1
+          pure (v, mv)
     )
   ,
     ( "aggregate"
@@ -195,13 +198,10 @@ properties runWoobat =
     )
   ]
 
-leftJoinLists :: [a] -> [b] -> (a -> b -> Bool) -> [(a, Maybe b)]
-leftJoinLists as bs on = do
-  a <- as
-  let bs' = filter (on a) bs
-  case bs' of
+leftJoinList :: [a] -> (a -> Bool) -> [Maybe a]
+leftJoinList as on =
+  case filter on as of
     [] ->
-      pure (a, Nothing)
-    _ -> do
-      b <- bs'
-      pure (a, Just b)
+      pure Nothing
+    as' ->
+      Just <$> as'
