@@ -204,7 +204,7 @@ properties runWoobat =
     )
   ,
     ( "select spec"
-    , Hedgehog.withTests 10000 $
+    , Hedgehog.withTests 1000 $
         Hedgehog.property $ do
           SomeSelectSpec select_ expected <- Hedgehog.forAll genSomeSelectSpec
           result <- Hedgehog.evalM $ runWoobat $ select select_
