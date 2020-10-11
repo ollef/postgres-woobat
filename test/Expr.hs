@@ -450,7 +450,7 @@ genLocalTime = LocalTime <$> genDay <*> genTimeOfDay
 genUTCTime :: Hedgehog.MonadGen m => m UTCTime
 genUTCTime = do
   day <- genDay
-  secs <- Gen.integral (Range.constant 0 $ fromIntegral daySeconds)
+  secs <- Gen.integral (Range.constant 0 $ fromIntegral daySeconds - 1)
   let diff = secondsToDiffTime secs
   pure $ UTCTime day diff
 
