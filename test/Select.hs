@@ -1,4 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -9,12 +11,15 @@
 
 module Select where
 
-import Control.Lens
+import Control.Lens hiding ((<.))
+import Control.Monad
 import Data.Foldable
+import qualified Data.Generic.HKD as HKD
 import Data.Generics.Labels ()
 import qualified Data.List as List
 import Data.Ratio
 import Database.Woobat
+import qualified Database.Woobat.Barbie as Barbie
 import qualified Expr
 import qualified Hedgehog
 import qualified Hedgehog.Gen as Gen
@@ -68,16 +73,17 @@ properties runWoobat =
     , Hedgehog.property $ do
         Expr.SomeIntegral gen <- Hedgehog.forAll Expr.genSomeIntegral
         xs <- Hedgehog.forAll $ Gen.list (Range.linearFrom 0 0 10) gen
+        Operation _ dbOp haskellOp <- Hedgehog.forAll genOrdOperation
         result <-
           Hedgehog.evalM $
             runWoobat $
               select $ do
                 v <- values $ value <$> xs
-                mv' <- leftJoin (values $ value <$> xs) $ \v' -> v ==. v' + 1
+                mv' <- leftJoin (values $ value <$> xs) $ dbOp v
                 pure (v, mv')
         result Hedgehog.=== do
           v <- xs
-          mv <- leftJoinList xs $ \v' -> v == v' + 1
+          mv <- leftJoinList xs $ haskellOp v
           pure (v, mv)
     )
   ,
@@ -196,7 +202,156 @@ properties runWoobat =
                 pure $ arrayOf $ values $ value <$> xs
         result Hedgehog.=== [xs]
     )
+  ,
+    ( "select spec"
+    , Hedgehog.withTests 10000 $
+        Hedgehog.property $ do
+          SomeSelectSpec select_ expected <- Hedgehog.forAll genSomeSelectSpec
+          result <- Hedgehog.evalM $ runWoobat $ select select_
+          List.sort result Hedgehog.=== List.sort expected
+    )
   ]
+
+-------------------------------------------------------------------------------
+
+data SelectSpec s a where
+  SelectSpec ::
+    Select s a ->
+    [Barbie.Result (Barbie.FromBarbie (Expr s) a Identity)] ->
+    SelectSpec s a
+
+data SomeSelectSpec s where
+  SomeSelectSpec ::
+    ( Show (Barbie.Result (Barbie.FromBarbie (Expr s) a Identity))
+    , Eq (Barbie.Result (Barbie.FromBarbie (Expr s) a Identity))
+    , Ord (Barbie.Result (Barbie.FromBarbie (Expr s) a Identity))
+    , Barbie (Expr s) a
+    , HKD.AllB DatabaseType (Barbie.ToBarbie (Expr s) a)
+    , HKD.ConstraintsB (Barbie.ToBarbie (Expr s) a)
+    , Barbie.Resultable (Barbie.FromBarbie (Expr s) a Identity)
+    ) =>
+    Select s a ->
+    [Barbie.Result (Barbie.FromBarbie (Expr s) a Identity)] ->
+    SomeSelectSpec s
+
+instance s ~ () => Show (SomeSelectSpec s) where
+  show (SomeSelectSpec sel result) = show (fst $ compile sel, result)
+
+data Operation where
+  Operation ::
+    String ->
+    (forall a s. Ord a => Expr s a -> Expr s a -> Expr s Bool) ->
+    (forall a. Ord a => a -> a -> Bool) ->
+    Operation
+
+instance Show Operation where
+  show (Operation o _ _) = o
+
+genSelectSpec :: forall s a. DatabaseType a => Hedgehog.Gen a -> Hedgehog.Gen (SelectSpec s (Expr s a))
+genSelectSpec gen =
+  Gen.choice
+    [ do
+        x <- gen
+        let sel = pure $ value x
+            expected = [x]
+        pure $ SelectSpec sel expected
+    , do
+        xs <- Gen.list (Range.linearFrom 0 0 10) gen
+        let sel = values $ value <$> xs
+            expected = xs
+        pure $ SelectSpec sel expected
+    ]
+
+genSomeSelectSpec :: forall s. Hedgehog.Gen (SomeSelectSpec s)
+genSomeSelectSpec =
+  Gen.recursive
+    Gen.choice
+    [ do
+        Expr.Some gen <- Expr.genSome
+        SelectSpec sel expected <- genSelectSpec gen
+        pure $ SomeSelectSpec sel expected
+    ]
+    [ do
+        SomeSelectSpec sel1 expected1 <- genSomeSelectSpec @s
+        SomeSelectSpec sel2 expected2 <- genSomeSelectSpec @s
+        let sel = (,) <$> sel1 <*> sel2
+            expected = (,) <$> expected1 <*> expected2
+        pure $ SomeSelectSpec sel expected
+    , do
+        Expr.SomeNonMaybe gen <- Expr.genSomeNonMaybe
+        SelectSpec sel1 expected1 <- genSelectSpec gen
+        SelectSpec sel2 expected2 <- genSelectSpec gen
+        Operation _ dbOp haskellOp <- genEqOperation
+        let sel = do
+              x <- sel1
+              y <- sel2
+              where_ $ dbOp x y
+              pure x
+            expected = do
+              x <- expected1
+              y <- expected2
+              guard $ haskellOp x y
+              pure x
+        pure $ SomeSelectSpec sel expected
+    , do
+        Expr.SomeNonMaybe gen <- Expr.genSomeNonMaybe
+        SelectSpec sel1 expected1 <- genSelectSpec gen
+        SelectSpec sel2 expected2 <- genSelectSpec gen
+        Operation _ dbOp haskellOp <- genEqOperation
+        let sel = do
+              x <- sel1
+              mx <- leftJoin sel2 $ dbOp x
+              pure (x, mx)
+            expected = do
+              x <- expected1
+              mx <- leftJoinList expected2 $ haskellOp x
+              pure (x, mx)
+        pure $ SomeSelectSpec sel expected
+    , do
+        Expr.SomeIntegral gen <- Expr.genSomeIntegral
+        SelectSpec sel expected <- genSelectSpec gen
+        x <- gen
+        Operation _ dbOp haskellOp <- genOrdOperation
+        let sel' = filter_ (dbOp $ value x) sel
+            expected' = filter (haskellOp x) expected
+        pure $ SomeSelectSpec sel' expected'
+    , do
+        Expr.SomeIntegral gen1 <- Expr.genSomeIntegral
+        Expr.SomeIntegral gen2 <- Expr.genSomeIntegral
+        SelectSpec sel1 expected1 <- genSelectSpec gen1
+        SelectSpec sel2 expected2 <- genSelectSpec gen2
+        let sel' = unnest $
+              arrayOf $ do
+                x <- sel1
+                y <- sel2
+                pure $ row $ HKD.build @(Expr.TableTwo _ _) x y
+            expected' = Expr.TableTwo <$> expected1 <*> expected2
+        pure $ SomeSelectSpec sel' expected'
+    , do
+        SomeSelectSpec sel expected <- genSomeSelectSpec @s
+        let sel' = pure $ exists sel
+            expected' = [not $ null expected]
+        pure $ SomeSelectSpec sel' expected'
+    ]
+
+genEqOperation :: Hedgehog.Gen Operation
+genEqOperation =
+  Gen.element
+    [ Operation "==" (==.) (==)
+    , Operation "/=" (/=.) (/=)
+    ]
+
+genOrdOperation :: Hedgehog.Gen Operation
+genOrdOperation =
+  Gen.choice
+    [ genEqOperation
+    , Gen.element
+        [ Operation "<" (<.) (<)
+        , Operation "<=" (<=.) (<=)
+        , Operation ">" (>.) (>)
+        , Operation ">=" (>=.) (>=)
+        ]
+    ]
 
 leftJoinList :: [a] -> (a -> Bool) -> [Maybe a]
 leftJoinList as on =
