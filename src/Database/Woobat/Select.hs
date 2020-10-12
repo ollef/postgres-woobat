@@ -237,7 +237,12 @@ groupBy (Expr expr) = Select $ do
   addSelect mempty {Raw.groupBys = pure $ Raw.unExpr expr usedNames_}
   pure $ AggregateExpr expr
 
-values ::
+-- | @VALUES@
+values :: Same s t => DatabaseType a => [a] -> Select t (Expr s a)
+values = expressions . map value
+
+-- | @VALUES@
+expressions ::
   forall s t u a.
   ( Same s t
   , Same t u
@@ -248,14 +253,14 @@ values ::
   ) =>
   [a] ->
   Select t (Outer s a)
-values rows = do
+expressions rows = do
   case rows of
     [] -> where_ false
     _ -> pure ()
   Select $ do
     let barbieRows :: [ToBarbie (Expr (Inner s)) a (Expr (Inner s))]
         barbieRows = toBarbie <$> rows
-    rowAlias <- Raw.code <$> freshName "values"
+    rowAlias <- Raw.code <$> freshName "expressions"
     aliasesBarbie :: ToBarbie (Expr (Inner s)) a (Const ByteString) <- Barbie.btraverse (\(Const ()) -> Const <$> freshName "col") mempty
     let aliases = Barbie.bfoldMap (\(Const a) -> [Raw.code a]) aliasesBarbie
     usedNames_ <- gets usedNames

@@ -36,7 +36,7 @@ properties runWoobat =
         xs <- Hedgehog.forAll $ Gen.list (Range.linearFrom 0 0 10) gen
         result <-
           Hedgehog.evalM $
-            runWoobat $ select $ values $ value <$> xs
+            runWoobat $ select $ values xs
         result Hedgehog.=== xs
     )
   ,
@@ -49,7 +49,7 @@ properties runWoobat =
           Hedgehog.evalM $
             runWoobat $
               select $ do
-                v <- values $ value <$> xs
+                v <- values xs
                 where_ $ v >. value cutoff
                 pure v
         result Hedgehog.=== filter (> cutoff) xs
@@ -63,7 +63,7 @@ properties runWoobat =
           Hedgehog.evalM $
             runWoobat $
               select $ do
-                (v, v') <- values $ zip (value <$> xs) (value <$> reverse xs)
+                (v, v') <- expressions $ zip (value <$> xs) (value <$> reverse xs)
                 orderBy v ascending
                 pure (v, v')
         result Hedgehog.=== List.sortOn fst (zip xs (reverse xs))
@@ -78,8 +78,8 @@ properties runWoobat =
           Hedgehog.evalM $
             runWoobat $
               select $ do
-                v <- values $ value <$> xs
-                mv' <- leftJoin (values $ value <$> xs) $ dbOp v
+                v <- values xs
+                mv' <- leftJoin (values xs) $ dbOp v
                 pure (v, mv')
         result Hedgehog.=== do
           v <- xs
@@ -96,7 +96,7 @@ properties runWoobat =
             runWoobat $
               select $
                 aggregate $ do
-                  v <- values $ value <$> xs
+                  v <- values xs
                   pure ((count v, countAll), (all_ $ v ==. 0, any_ $ v ==. 0), (max_ v, min_ v), sum_ v, arrayAggregate v)
         result
           Hedgehog.=== [
@@ -120,7 +120,7 @@ properties runWoobat =
             runWoobat $
               select $
                 aggregate $ do
-                  v <- values $ value <$> xs
+                  v <- values xs
                   pure $ average v
         let result' = fmap round <$> result
             expected :: Ratio Integer
@@ -136,7 +136,7 @@ properties runWoobat =
           Hedgehog.evalM $
             runWoobat $
               select $
-                values $ zip (value <$> xs) (value <$> xs)
+                expressions $ zip (value <$> xs) (value <$> xs)
         result Hedgehog.=== zip (toList xs) (toList xs)
     )
   ,
@@ -148,7 +148,7 @@ properties runWoobat =
             sameParamAs _ ga = ga
         result <-
           Hedgehog.evalM $
-            runWoobat $ select $ leftJoin (values $ value <$> xs) $ const false
+            runWoobat $ select $ leftJoin (values xs) $ const false
         result Hedgehog.=== [sameParamAs xs Nothing]
     )
   ,
@@ -199,7 +199,7 @@ properties runWoobat =
           Hedgehog.evalM $
             runWoobat $
               select $
-                pure $ arrayOf $ values $ value <$> xs
+                pure $ arrayOf $ values xs
         result Hedgehog.=== [xs]
     )
   ,
@@ -257,7 +257,7 @@ genSelectSpec gen =
         pure $ SelectSpec sel expected
     , do
         xs <- Gen.list (Range.linearFrom 0 0 10) gen
-        let sel = values $ value <$> xs
+        let sel = values xs
             expected = xs
         pure $ SelectSpec sel expected
     ]
