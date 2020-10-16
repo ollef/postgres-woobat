@@ -1,12 +1,7 @@
-{-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 module Database.Woobat.Select (
@@ -19,19 +14,8 @@ import Control.Exception.Safe
 import Control.Monad
 import Control.Monad.State
 import qualified Data.Barbie as Barbie
-import Data.ByteString (ByteString)
-import qualified Data.ByteString.Lazy as Lazy
-import Data.Functor.Const (Const (Const))
 import Data.Functor.Identity
-import Data.Generic.HKD (HKD)
 import qualified Data.Generic.HKD as HKD
-import Data.Int
-import Data.Scientific
-import Data.Text (Text)
-import qualified Data.Text.Encoding as Text
-import qualified Data.Text.Lazy as Lazy
-import Data.Time (Day, DiffTime, LocalTime, TimeOfDay, TimeZone, UTCTime)
-import Data.UUID.Types (UUID)
 import qualified Database.PostgreSQL.LibPQ as LibPQ
 import Database.Woobat.Barbie hiding (result)
 import qualified Database.Woobat.Barbie
@@ -41,8 +25,6 @@ import qualified Database.Woobat.Monad as Monad
 import qualified Database.Woobat.Raw as Raw
 import Database.Woobat.Scope
 import Database.Woobat.Select.Builder
-import Database.Woobat.Table (Table)
-import qualified Database.Woobat.Table as Table
 import qualified PostgreSQL.Binary.Decoding as Decoding
 
 select ::
@@ -117,33 +99,6 @@ compile s = do
       sql = Compiler.compileSelect (Barbie.bfoldMap (\(Expr e) -> [Raw.unExpr e $ usedNames st]) resultsBarbie) $ rawSelect st
   (sql, resultsBarbie)
 
-from ::
-  forall table s.
-  HKD.FunctorB (HKD table) =>
-  Table table ->
-  Select s (HKD table (Expr s))
-from table = Select $ do
-  let tableName =
-        Text.encodeUtf8 $ Table.name table
-  alias <- freshName tableName
-  let tableRow :: HKD table (Expr s)
-      tableRow =
-        HKD.bmap (\(Const columnName) -> Expr $ Raw.codeExpr $ alias <> "." <> Text.encodeUtf8 columnName) $ Table.columnNames table
-  addSelect mempty {Raw.from = Raw.Table tableName alias}
-  pure tableRow
-
-where_ :: Same s t => Expr s Bool -> Select t ()
-where_ (Expr cond) =
-  Select $ do
-    usedNames_ <- gets usedNames
-    addSelect mempty {Raw.wheres = pure $ Raw.unExpr cond usedNames_}
-
-filter_ :: (Same s t, Same t u) => (a -> Expr s Bool) -> Select t a -> Select u a
-filter_ f q = do
-  a <- q
-  where_ $ f a
-  pure a
-
 orderBy :: Same s t => Expr s a -> Raw.Order -> Select t ()
 orderBy (Expr expr) order_ =
   Select $ do
@@ -155,224 +110,3 @@ ascending = Raw.Ascending
 
 descending :: Raw.Order
 descending = Raw.Descending
-
-leftJoin ::
-  forall a s t u.
-  (Barbie (Expr (Inner s)) a) =>
-  Select (Inner s) a ->
-  (Outer s a -> Expr t Bool) ->
-  Select u (Left s a)
-leftJoin (Select sel) on = Select $ do
-  (innerResults, rightSelect) <- subquery sel
-  let innerResultsBarbie :: ToBarbie (Expr (Inner s)) a (Expr (Inner s))
-      innerResultsBarbie = toBarbie innerResults
-  leftFrom <- gets $ Raw.from . rawSelect
-  leftFrom' <- mapM (\() -> freshName "unit") leftFrom
-  usedNames_ <- gets usedNames
-  alias <- freshName "subquery"
-  namedResults :: ToBarbie (Expr (Inner s)) a (Product (Const ByteString) (Expr (Inner s))) <-
-    HKD.btraverse
-      ( \e -> do
-          name <- freshName "col"
-          pure $ Product (Const name) e
-      )
-      innerResultsBarbie
-  let outerResults :: ToBarbie (Expr (Inner s)) a (Expr (Inner s))
-      outerResults =
-        HKD.bmap (\(Product (Const name) _) -> Expr $ Raw.codeExpr $ alias <> "." <> name) namedResults
-      Expr rawOn =
-        on $ outer @s @a outerResults
-  modify $ \s ->
-    s
-      { rawSelect =
-          (rawSelect s)
-            { Raw.from =
-                Raw.LeftJoin
-                  leftFrom'
-                  (Raw.unExpr rawOn usedNames_)
-                  ( Raw.Subquery
-                      (Barbie.bfoldMap (\(Product (Const name) (Expr e)) -> pure (Raw.unExpr e usedNames_, name)) namedResults)
-                      rightSelect
-                      alias
-                  )
-            }
-      }
-  return $ left @s @a outerResults
-
-aggregate ::
-  forall a s t.
-  (Barbie (AggregateExpr (Inner s)) a, Same s t) =>
-  Select (Inner s) a ->
-  Select t (Aggregated s a)
-aggregate (Select sel) = Select $ do
-  (innerResults, aggSelect) <- subquery sel
-  alias <- freshName "subquery"
-  usedNames_ <- gets usedNames
-  namedResults :: ToBarbie (AggregateExpr (Inner s)) a (Product (Const ByteString) (AggregateExpr (Inner s))) <-
-    HKD.btraverse
-      ( \e -> do
-          name <- freshName "col"
-          pure $ Product (Const name) e
-      )
-      (toBarbie innerResults)
-  let outerResults :: ToBarbie (AggregateExpr (Inner s)) a (Expr (Inner s))
-      outerResults =
-        HKD.bmap (\(Product (Const name) _) -> Expr $ Raw.codeExpr $ alias <> "." <> name) namedResults
-  addSelect
-    mempty
-      { Raw.from =
-          Raw.Subquery
-            (Barbie.bfoldMap (\(Product (Const name) (AggregateExpr e)) -> pure (Raw.unExpr e usedNames_, name)) namedResults)
-            aggSelect
-            alias
-      }
-  return $ aggregated @s @a outerResults
-
-groupBy ::
-  (Same s t, Same t u) =>
-  Expr (Inner s) a ->
-  Select (Inner t) (AggregateExpr (Inner u) a)
-groupBy (Expr expr) = Select $ do
-  usedNames_ <- gets usedNames
-  addSelect mempty {Raw.groupBys = pure $ Raw.unExpr expr usedNames_}
-  pure $ AggregateExpr expr
-
--- | @VALUES@
-values :: Same s t => DatabaseType a => [a] -> Select t (Expr s a)
-values = expressions . map value
-
--- | @VALUES@
-expressions ::
-  forall s t u a.
-  ( Same s t
-  , Same t u
-  , Barbie (Expr (Inner s)) a
-  , Monoid (ToBarbie (Expr (Inner u)) a (Const ()))
-  , HKD.ConstraintsB (ToBarbie (Expr (Inner u)) a)
-  , HKD.AllB DatabaseType (ToBarbie (Expr (Inner u)) a)
-  ) =>
-  [a] ->
-  Select t (Outer s a)
-expressions rows = do
-  case rows of
-    [] -> where_ false
-    _ -> pure ()
-  Select $ do
-    let barbieRows :: [ToBarbie (Expr (Inner s)) a (Expr (Inner s))]
-        barbieRows = toBarbie <$> rows
-    rowAlias <- Raw.code <$> freshName "expressions"
-    aliasesBarbie :: ToBarbie (Expr (Inner s)) a (Const ByteString) <- Barbie.btraverse (\(Const ()) -> Const <$> freshName "col") mempty
-    let aliases = Barbie.bfoldMap (\(Const a) -> [Raw.code a]) aliasesBarbie
-    usedNames_ <- gets usedNames
-    addSelect
-      mempty
-        { Raw.from =
-            Raw.Set
-              ( "(VALUES "
-                  <> ( case barbieRows of
-                        [] -> do
-                          let go :: forall f x. DatabaseType x => f x -> Expr (Inner s) x
-                              go _ = Expr $ "null::" <> typeName @x
-                              nullRow = Barbie.bmapC @DatabaseType go aliasesBarbie
-                          "(" <> Raw.separateBy ", " (Barbie.bfoldMap (\(Expr e) -> [Raw.unExpr e usedNames_]) nullRow) <> ")"
-                        _ -> Raw.separateBy ", " ((\row_ -> "(" <> Raw.separateBy ", " (Barbie.bfoldMap (\(Expr e) -> [Raw.unExpr e usedNames_]) row_) <> ")") <$> barbieRows)
-                     )
-                  <> ")"
-              )
-              ( rowAlias
-                  <> "("
-                  <> Raw.separateBy ", " aliases
-                  <> ")"
-              )
-        }
-    let resultBarbie :: ToBarbie (Expr (Inner s)) a (Expr (Inner s))
-        resultBarbie = Barbie.bmap (\(Const alias) -> Expr $ Raw.codeExpr alias) aliasesBarbie
-    pure $ outer @s @a resultBarbie
-
--- | @UNNEST@
-unnest ::
-  forall s t a.
-  ( Same s t
-  , Unnestable a
-  ) =>
-  Expr s [a] ->
-  Select t (Unnested a (Expr s))
-unnest (Expr arr) = Select $ do
-  (returnRow, result) <- unnested @a @s
-  usedNames_ <- gets usedNames
-  addSelect mempty {Raw.from = Raw.Set ("UNNEST(" <> Raw.unExpr arr usedNames_ <> ")") returnRow}
-  pure result
-
--- TODO move
-type Unnested a f = FromBarbie f (UnnestedBarbie a f) f
-
-class Unnestable a where
-  type UnnestedBarbie a :: (* -> *) -> *
-  type UnnestedBarbie a = Singleton a
-  unnested :: State SelectState (Raw.SQL, Unnested a (Expr s))
-  default unnested :: (UnnestedBarbie a ~ Singleton a) => State SelectState (Raw.SQL, Unnested a (Expr s))
-  unnested = do
-    alias <- Raw.code <$> freshName "unnested"
-    pure (alias, Expr $ Raw.Expr $ const alias)
-
-instance Unnestable [a]
-instance Unnestable (JSONB a)
-instance UnnestableRowElement a => Unnestable (Maybe a)
-instance Unnestable Bool
-instance Unnestable Int
-instance Unnestable Int16
-instance Unnestable Int32
-instance Unnestable Int64
-instance Unnestable Float
-instance Unnestable Double
-instance Unnestable Scientific
-instance Unnestable UUID
-instance Unnestable Char
-instance Unnestable Text
-instance Unnestable Lazy.Text
-instance Unnestable ByteString
-instance Unnestable Lazy.ByteString
-instance Unnestable Day
-instance Unnestable TimeOfDay
-instance Unnestable (TimeOfDay, TimeZone)
-instance Unnestable LocalTime
-instance Unnestable UTCTime
-instance Unnestable DiffTime
-
-instance
-  ( HKD.AllB UnnestableRowElement row
-  , HKD.ConstraintsB row
-  , HKD.TraversableB row
-  , Monoid (row (Const ()))
-  ) =>
-  Unnestable (Row row)
-  where
-  type UnnestedBarbie (Row row) = RowF row
-  unnested = do
-    returnRow <- Barbie.btraverseC @UnnestableRowElement go (mempty :: row (Const ()))
-    usedNames_ <- gets usedNames
-    let returnRowList = Barbie.bfoldMap (\(Const (colAlias, typeName_)) -> [colAlias <> " " <> Raw.unExpr typeName_ usedNames_]) returnRow
-        result = Barbie.bmap (\(Const (colAlias, _)) -> Expr $ Raw.Expr $ const colAlias) returnRow
-    alias <- Raw.code <$> freshName "unnested"
-    pure (alias <> "(" <> Raw.separateBy ", " returnRowList <> ")", result)
-    where
-      go :: forall a. UnnestableRowElement a => Const () a -> State SelectState (Const (Raw.SQL, Raw.Expr) a)
-      go (Const ()) = do
-        colAlias <- freshName "col"
-        pure $ Const (Raw.code colAlias, typeName @a)
-
-class (DatabaseType a, Unnestable a, UnnestedBarbie a ~ Singleton a) => UnnestableRowElement a
-instance (DatabaseType a, Unnestable a, UnnestedBarbie a ~ Singleton a) => UnnestableRowElement a
-
--- | Unnest a singleton array
-unrow ::
-  ( HKD.AllB UnnestableRowElement row
-  , HKD.AllB DatabaseType row
-  , HKD.ConstraintsB row
-  , HKD.TraversableB row
-  , Monoid (row (Const ()))
-  , Same s t
-  ) =>
-  Expr s (Row row) ->
-  Select t (row (Expr s))
-unrow row_ = unnest $ array [row_]

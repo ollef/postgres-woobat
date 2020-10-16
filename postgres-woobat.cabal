@@ -30,6 +30,8 @@ library
       Database.Woobat.Expr
       Database.Woobat.Expr.Types
       Database.Woobat.Monad
+      Database.Woobat.Query
+      Database.Woobat.Query.Monad
       Database.Woobat.Raw
       Database.Woobat.Scope
       Database.Woobat.Select

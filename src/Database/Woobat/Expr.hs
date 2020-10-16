@@ -46,6 +46,7 @@ import Data.UUID.Types (UUID)
 import Database.Woobat.Barbie
 import Database.Woobat.Compiler
 import Database.Woobat.Expr.Types
+import Database.Woobat.Query.Monad
 import qualified Database.Woobat.Raw as Raw
 import qualified Database.Woobat.Scope as Scope
 import Database.Woobat.Select.Builder
@@ -448,10 +449,10 @@ toJSONB (Expr e) = case decoder @a of
     Expr $ "(TO_JSONB(ROW(" <> e <> "))->'f1')"
 
 jsonbArrayElements :: Scope.Same s t => Expr s (JSONB [a]) -> Select t (Expr s (JSONB a))
-jsonbArrayElements (Expr arr) = Select $ do
+jsonbArrayElements (Expr arr) = do
   returnAlias <- Raw.code <$> freshName "array_element"
-  usedNames_ <- gets usedNames
-  addSelect mempty {Raw.from = Raw.Set ("jsonb_array_elements(" <> Raw.unExpr arr usedNames_ <> ")") returnAlias}
+  usedNames_ <- getUsedNames
+  addFrom $ Raw.Set ("jsonb_array_elements(" <> Raw.unExpr arr usedNames_ <> ")") returnAlias
   pure $ Expr $ Raw.Expr $ const returnAlias
 -------------------------------------------------------------------------------
 
