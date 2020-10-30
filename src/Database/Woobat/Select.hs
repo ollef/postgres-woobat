@@ -1,3 +1,4 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -37,60 +38,53 @@ select ::
   ) =>
   Select () a ->
   m [Result (FromBarbie (Expr ()) a Identity)]
-select s =
-  Monad.withConnection $ \connection -> liftIO $ do
-    let (rawSQL, resultsBarbie) = compile s
-        (code, params) = Raw.separateCodeAndParams rawSQL
-        params' = fmap (\p -> (LibPQ.Oid 0, p, LibPQ.Binary)) <$> params
-    maybeResult <- LibPQ.execParams connection code params' LibPQ.Binary
-    case maybeResult of
-      Nothing -> throwM $ Monad.ConnectionError LibPQ.ConnectionBad
-      Just result -> do
-        status <- LibPQ.resultStatus result
-        let onError = do
-              message <- LibPQ.resultErrorMessage result
-              throwM $ Monad.ExecutionError status message
-            onResult = do
-              rowCount <- LibPQ.ntuples result
-              forM [0 .. rowCount - 1] $ \rowNumber -> do
-                let go :: DatabaseType x => Expr () x -> StateT LibPQ.Column IO (Identity x)
-                    go _ = fmap Identity $ do
-                      col <- get
-                      put $ col + 1
-                      maybeValue <- liftIO $ LibPQ.getvalue result rowNumber col
-                      case (decoder, maybeValue) of
-                        (Decoder d, Just v) ->
-                          case Decoding.valueParser d v of
-                            Left err ->
-                              throwM $ Monad.DecodingError rowNumber col err
-                            Right a ->
-                              pure a
-                        (Decoder _, Nothing) ->
-                          throwM $ Monad.UnexpectedNullError rowNumber col
-                        (NullableDecoder _, Nothing) ->
-                          pure Nothing
-                        (NullableDecoder d, Just v) ->
-                          case Decoding.valueParser d v of
-                            Left err ->
-                              throwM $ Monad.DecodingError rowNumber col err
-                            Right a ->
-                              pure $ Just a
+select s = do
+  let (rawSQL, resultsBarbie) = compile s
+  Raw.execute rawSQL $ parseRows (Nothing :: Maybe a) resultsBarbie
 
-                barbieRow :: ToBarbie (Expr ()) a Identity <-
-                  flip evalStateT 0 $ Barbie.btraverseC @DatabaseType go resultsBarbie
-                pure $ Database.Woobat.Barbie.result $ fromBarbie @(Expr ()) @a barbieRow
-        case status of
-          LibPQ.EmptyQuery -> onError
-          LibPQ.CommandOk -> onError
-          LibPQ.CopyOut -> onError
-          LibPQ.CopyIn -> onError
-          LibPQ.CopyBoth -> onError
-          LibPQ.BadResponse -> onError
-          LibPQ.NonfatalError -> onError
-          LibPQ.FatalError -> onError
-          LibPQ.SingleTuple -> onResult
-          LibPQ.TuplesOk -> onResult
+-- TODO move
+parseRows ::
+  forall a proxy.
+  ( Barbie (Expr ()) a
+  , HKD.AllB DatabaseType (ToBarbie (Expr ()) a)
+  , HKD.ConstraintsB (ToBarbie (Expr ()) a)
+  , Resultable (FromBarbie (Expr ()) a Identity)
+  ) =>
+  proxy a ->
+  ToBarbie (Expr ()) a (Expr ()) ->
+  LibPQ.Result ->
+  IO [Result (FromBarbie (Expr ()) a Identity)]
+parseRows _ resultsBarbie result = do
+  rowCount <- LibPQ.ntuples result
+  forM [0 .. rowCount - 1] $ \rowNumber -> do
+    let go :: DatabaseType x => Expr () x -> StateT LibPQ.Column IO (Identity x)
+        go _ = fmap Identity $ do
+          col <- get
+          put $ col + 1
+          maybeValue <- liftIO $ LibPQ.getvalue result rowNumber col
+          case (decoder, maybeValue) of
+            (Decoder d, Just v) ->
+              case Decoding.valueParser d v of
+                Left err ->
+                  throwM $ Monad.DecodingError rowNumber col err
+                Right a ->
+                  pure a
+            (Decoder _, Nothing) ->
+              throwM $ Monad.UnexpectedNullError rowNumber col
+            (NullableDecoder _, Nothing) ->
+              pure Nothing
+            (NullableDecoder d, Just v) ->
+              case Decoding.valueParser d v of
+                Left err ->
+                  throwM $ Monad.DecodingError rowNumber col err
+                Right a ->
+                  pure $ Just a
 
+    barbieRow :: ToBarbie (Expr ()) a Identity <-
+      flip evalStateT 0 $ Barbie.btraverseC @DatabaseType go resultsBarbie
+    pure $ Database.Woobat.Barbie.result $ fromBarbie @(Expr ()) @a barbieRow
+
+-- TODO move
 compile :: forall a. Barbie (Expr ()) a => Select () a -> (Raw.SQL, ToBarbie (Expr ()) a (Expr ()))
 compile s = do
   let (results, st) = run mempty s

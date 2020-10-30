@@ -9,7 +9,10 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
-module Database.Woobat.Query where
+module Database.Woobat.Query (
+  module Database.Woobat.Query,
+  MonadQuery,
+) where
 
 import Control.Monad.State
 import qualified Data.Barbie as Barbie

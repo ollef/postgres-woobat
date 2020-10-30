@@ -8,7 +8,9 @@ module Database.Woobat.Raw where
 
 import ByteString.StrictBuilder (Builder)
 import qualified ByteString.StrictBuilder as Builder
+import Control.Exception.Safe
 import Control.Monad
+import Control.Monad.IO.Class
 import Data.ByteString (ByteString)
 import Data.Foldable
 import Data.HashMap.Lazy (HashMap)
@@ -16,20 +18,11 @@ import Data.List (intersperse)
 import Data.Sequence (Seq)
 import qualified Data.Sequence as Seq
 import Data.String
+import qualified Database.PostgreSQL.LibPQ as LibPQ
+import qualified Database.Woobat.Monad as Monad
 
 newtype SQL = SQL (Seq SQLFragment)
   deriving (Show)
-
-separateCodeAndParams :: SQL -> (ByteString, [Maybe ByteString])
-separateCodeAndParams (SQL fragments) = do
-  let (codeBuilder, params, _) = foldl' go (mempty, mempty, 1 :: Int) fragments
-  (Builder.builderBytes codeBuilder, toList params)
-  where
-    go (!codeBuilder, params, !paramNumber) fragment =
-      case fragment of
-        Code c -> (codeBuilder <> c, params, paramNumber)
-        Param p -> (codeBuilder <> "$" <> Builder.asciiIntegral paramNumber, params :> Just p, paramNumber + 1)
-        NullParam -> (codeBuilder <> "$" <> Builder.asciiIntegral paramNumber, params :> Nothing, paramNumber + 1)
 
 data SQLFragment
   = Code !Builder
@@ -132,6 +125,13 @@ instance Monoid (From ()) where
 
 -------------------------------------------------------------------------------
 
+data OnConflict
+  = NoConflictHandling
+  | OnAnyConflictDoNothing
+  | OnConflict [ByteString] [(ByteString, Expr)] (Maybe Expr)
+
+-------------------------------------------------------------------------------
+
 data Tsil a = Empty | Tsil a :> a
   deriving (Eq, Ord, Show, Functor, Traversable)
 
@@ -159,3 +159,41 @@ instance Monad Tsil where
   return = pure
   Empty >>= _ = Empty
   xs :> x >>= f = (xs >>= f) <> f x
+
+-------------------------------------------------------------------------------
+
+execute :: Monad.MonadWoobat m => SQL -> (LibPQ.Result -> IO a) -> m a
+execute sql onResult =
+  Monad.withConnection $ \connection -> liftIO $ do
+    let (code_, params) = separateCodeAndParams sql
+        params' = fmap (\p -> (LibPQ.Oid 0, p, LibPQ.Binary)) <$> params
+    maybeResult <- LibPQ.execParams connection code_ params' LibPQ.Binary
+    case maybeResult of
+      Nothing -> throwM $ Monad.ConnectionError LibPQ.ConnectionBad
+      Just result -> do
+        status <- LibPQ.resultStatus result
+        let onError = do
+              message <- LibPQ.resultErrorMessage result
+              throwM $ Monad.ExecutionError status message
+        case status of
+          LibPQ.EmptyQuery -> onError
+          LibPQ.CommandOk -> onError
+          LibPQ.CopyOut -> onError
+          LibPQ.CopyIn -> onError
+          LibPQ.CopyBoth -> onError
+          LibPQ.BadResponse -> onError
+          LibPQ.NonfatalError -> onError
+          LibPQ.FatalError -> onError
+          LibPQ.SingleTuple -> onResult result
+          LibPQ.TuplesOk -> onResult result
+  where
+    separateCodeAndParams :: SQL -> (ByteString, [Maybe ByteString])
+    separateCodeAndParams (SQL fragments) = do
+      let (codeBuilder, params, _) = foldl' go (mempty, mempty, 1 :: Int) fragments
+      (Builder.builderBytes codeBuilder, toList params)
+      where
+        go (!codeBuilder, params, !paramNumber) fragment =
+          case fragment of
+            Code c -> (codeBuilder <> c, params, paramNumber)
+            Param p -> (codeBuilder <> "$" <> Builder.asciiIntegral paramNumber, params :> Just p, paramNumber + 1)
+            NullParam -> (codeBuilder <> "$" <> Builder.asciiIntegral paramNumber, params :> Nothing, paramNumber + 1)

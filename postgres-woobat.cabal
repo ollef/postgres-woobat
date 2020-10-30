@@ -29,10 +29,12 @@ library
       Database.Woobat.Compiler
       Database.Woobat.Expr
       Database.Woobat.Expr.Types
+      Database.Woobat.Insert
       Database.Woobat.Monad
       Database.Woobat.Query
       Database.Woobat.Query.Monad
       Database.Woobat.Raw
+      Database.Woobat.Returning
       Database.Woobat.Scope
       Database.Woobat.Select
       Database.Woobat.Select.Builder

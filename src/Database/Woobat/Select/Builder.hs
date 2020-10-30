@@ -21,14 +21,14 @@ instance MonadQuery Select where
   getUsedNames =
     Select $
       gets usedNames
-  putUsedNames usedNames_ = Select $
-    modify $ \s -> s {usedNames = usedNames_}
+  putUsedNames usedNames_ =
+    Select $ modify $ \s -> s {usedNames = usedNames_}
   getFrom =
     Select $ gets $ Raw.from . rawSelect
   putFrom f =
     Select $ modify $ \s -> s {rawSelect = (rawSelect s) {Raw.from = f}}
-  addWhere (Raw.Expr where_) = Select $
-    modify $ \s -> s {rawSelect = rawSelect s <> mempty {Raw.wheres = pure $ where_ $ usedNames s}}
+  addWhere (Raw.Expr where_) =
+    Select $ modify $ \s -> s {rawSelect = rawSelect s <> mempty {Raw.wheres = pure $ where_ $ usedNames s}}
 
 run :: HashMap ByteString Int -> Select s a -> (a, SelectState)
 run used (Select s) =

@@ -54,3 +54,17 @@ compileOrderBys orderBys =
 compileOrder :: Raw.Order -> Raw.SQL
 compileOrder Raw.Ascending = "ASC"
 compileOrder Raw.Descending = "DESC"
+
+compileOnConflict :: Raw.OnConflict -> Raw.Expr
+compileOnConflict onConflict =
+  Raw.Expr $ \usedNames -> case onConflict of
+    Raw.NoConflictHandling -> ""
+    Raw.OnAnyConflictDoNothing -> " ON CONFLICT DO NOTHING"
+    Raw.OnConflict fields assignments maybeWhere -> do
+      " ON CONFLICT (" <> Raw.separateBy ", " (Raw.code <$> fields) <> ") "
+        <> case assignments of
+          [] -> "DO NOTHING"
+          _ -> "DO UPDATE " <> Raw.separateBy ", " ["SET " <> Raw.code f <> " = " <> Raw.unExpr e usedNames | (f, e) <- assignments]
+        <> case maybeWhere of
+          Nothing -> ""
+          Just e -> " WHERE " <> Raw.unExpr e usedNames
