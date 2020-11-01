@@ -1,14 +1,14 @@
 module Database.Woobat (
-  module Database.Woobat.Expr,
-  module Database.Woobat.Monad,
-  module Database.Woobat.Query,
-  module Database.Woobat.Scope,
-  module Database.Woobat.Select,
   module Database.Woobat.Table,
+  module Database.Woobat.Query,
+  module Database.Woobat.Select,
   module Database.Woobat.Returning,
   module Database.Woobat.Delete,
   module Database.Woobat.Insert,
   module Database.Woobat.Update,
+  module Database.Woobat.Expr,
+  module Database.Woobat.Scope,
+  module Database.Woobat.Monad,
 ) where
 
 import Database.Woobat.Delete
