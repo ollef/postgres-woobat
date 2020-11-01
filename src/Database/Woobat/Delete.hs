@@ -13,7 +13,6 @@ import qualified Data.HashMap.Lazy as HashMap
 import qualified Data.Text.Encoding as Text
 import qualified Database.PostgreSQL.LibPQ as LibPQ
 import Database.Woobat.Barbie
-import qualified Database.Woobat.Compiler as Compiler
 import Database.Woobat.Delete.Builder (Delete)
 import qualified Database.Woobat.Delete.Builder as Builder
 import Database.Woobat.Expr
@@ -53,9 +52,9 @@ delete table query =
     using =
       case Raw.unitView $ Builder.rawFrom builderState of
         Right () -> ""
-        Left f -> " USING " <> Compiler.compileFrom f
+        Left f -> " USING " <> Raw.compileFrom f
     statement =
       "DELETE FROM " <> Raw.code tableName
         <> using
-        <> Compiler.compileWheres (Builder.wheres builderState)
+        <> Raw.compileWheres (Builder.wheres builderState)
         <> returningClause

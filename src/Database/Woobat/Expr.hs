@@ -44,7 +44,6 @@ import qualified Data.Text.Lazy as Lazy
 import Data.Time (Day, DiffTime, LocalTime, TimeOfDay, TimeZone, UTCTime)
 import Data.UUID.Types (UUID)
 import Database.Woobat.Barbie
-import Database.Woobat.Compiler
 import Database.Woobat.Expr.Types
 import Database.Woobat.Query.Monad
 import qualified Database.Woobat.Raw as Raw
@@ -277,7 +276,7 @@ arrayOf :: (NonNestedArray a, Scope.Same s t) => Select s (Expr t a) -> Expr t [
 arrayOf select = Expr $
   Raw.Expr $ \usedNames_ -> do
     let (Expr expr, st) = run usedNames_ select
-    "ARRAY(" <> compileSelect [Raw.unExpr expr $ usedNames st] (rawSelect st) <> ")"
+    "ARRAY(" <> Raw.compileSelect [Raw.unExpr expr $ usedNames st] (rawSelect st) <> ")"
 
 instance Semigroup (Expr s [a]) where
   (<>) = unsafeBinaryOperator "||"
@@ -512,7 +511,7 @@ exists :: Select s a -> Expr s Bool
 exists select = Expr $
   Raw.Expr $ \usedNames_ -> do
     let (_, st) = run usedNames_ select
-    "EXISTS(" <> compileSelect [] (rawSelect st) <> ")"
+    "EXISTS(" <> Raw.compileSelect [] (rawSelect st) <> ")"
 
 -------------------------------------------------------------------------------
 

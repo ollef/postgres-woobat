@@ -26,7 +26,6 @@ library
   exposed-modules:
       Database.Woobat
       Database.Woobat.Barbie
-      Database.Woobat.Compiler
       Database.Woobat.Delete
       Database.Woobat.Delete.Builder
       Database.Woobat.Expr

@@ -15,7 +15,6 @@ import qualified Data.Sequence as Seq
 import qualified Data.Text.Encoding as Text
 import qualified Database.PostgreSQL.LibPQ as LibPQ
 import Database.Woobat.Barbie
-import qualified Database.Woobat.Compiler as Compiler
 import Database.Woobat.Expr.Types
 import Database.Woobat.Monad (MonadWoobat)
 import qualified Database.Woobat.Raw as Raw
@@ -67,10 +66,10 @@ update table query =
     from =
       case Raw.unitView $ Builder.rawFrom builderState of
         Right () -> ""
-        Left f -> " USING " <> Compiler.compileFrom f
+        Left f -> " USING " <> Raw.compileFrom f
     statement =
       "UPDATE " <> Raw.code tableName <> " (" <> Raw.separateBy ", " (Raw.code <$> columnNamesList) <> ")"
         <> Raw.separateBy ", " setters
         <> from
-        <> Compiler.compileWheres (Builder.wheres builderState)
+        <> Raw.compileWheres (Builder.wheres builderState)
         <> returningClause

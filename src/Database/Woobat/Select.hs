@@ -20,7 +20,6 @@ import qualified Data.Generic.HKD as HKD
 import qualified Database.PostgreSQL.LibPQ as LibPQ
 import Database.Woobat.Barbie hiding (result)
 import qualified Database.Woobat.Barbie
-import qualified Database.Woobat.Compiler as Compiler
 import Database.Woobat.Expr
 import qualified Database.Woobat.Monad as Monad
 import qualified Database.Woobat.Raw as Raw
@@ -90,7 +89,7 @@ compile s = do
   let (results, st) = run mempty s
       resultsBarbie :: ToBarbie (Expr ()) a (Expr ())
       resultsBarbie = toBarbie results
-      sql = Compiler.compileSelect (Barbie.bfoldMap (\(Expr e) -> [Raw.unExpr e $ usedNames st]) resultsBarbie) $ rawSelect st
+      sql = Raw.compileSelect (Barbie.bfoldMap (\(Expr e) -> [Raw.unExpr e $ usedNames st]) resultsBarbie) $ rawSelect st
   (sql, resultsBarbie)
 
 orderBy :: Same s t => Expr s a -> Raw.Order -> Select t ()

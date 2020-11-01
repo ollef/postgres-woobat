@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Database.Woobat.Raw where
@@ -58,6 +59,7 @@ nullParam :: SQL
 nullParam = SQL $ pure NullParam
 
 -------------------------------------------------------------------------------
+
 newtype Expr = Expr {unExpr :: HashMap ByteString Int -> SQL}
   deriving (Semigroup, Monoid)
 
@@ -159,6 +161,70 @@ instance Monad Tsil where
   return = pure
   Empty >>= _ = Empty
   xs :> x >>= f = (xs >>= f) <> f x
+
+-------------------------------------------------------------------------------
+
+compileSelect :: [SQL] -> Select -> SQL
+compileSelect exprs Select {from, wheres, groupBys, orderBys} =
+  "SELECT " <> separateBy ", " exprs
+    <> ( case unitView from of
+          Right () -> mempty
+          Left from' -> " FROM " <> compileFrom from'
+       )
+    <> compileWheres wheres
+    <> compileGroupBys groupBys
+    <> compileOrderBys orderBys
+
+compileFrom :: From ByteString -> SQL
+compileFrom from =
+  case from of
+    Unit alias ->
+      "(VALUES (0)) " <> code alias
+    Table name alias
+      | name == alias ->
+        code name
+      | otherwise ->
+        code name <> " AS " <> code alias
+    Set expr returnRow ->
+      expr <> " AS " <> returnRow
+    Subquery exprAliases select alias ->
+      "(" <> compileSelect [expr <> " AS " <> code columnAlias | (expr, columnAlias) <- exprAliases] select <> ") AS " <> code alias
+    CrossJoin left right ->
+      compileFrom left <> " CROSS JOIN " <> compileFrom right
+    LeftJoin left on right ->
+      compileFrom left <> " LEFT JOIN " <> compileFrom right <> " ON " <> on
+
+compileWheres :: Tsil SQL -> SQL
+compileWheres Empty = mempty
+compileWheres wheres = " WHERE " <> separateBy " AND " wheres
+
+compileGroupBys :: Tsil SQL -> SQL
+compileGroupBys Empty = mempty
+compileGroupBys groupBys = " GROUP BY " <> separateBy ", " groupBys
+
+compileOrderBys :: Tsil (SQL, Order) -> SQL
+compileOrderBys Empty = mempty
+compileOrderBys orderBys =
+  " ORDER BY "
+    <> separateBy ", " ((\(expr, order) -> expr <> " " <> compileOrder order) <$> orderBys)
+
+compileOrder :: Order -> SQL
+compileOrder Ascending = "ASC"
+compileOrder Descending = "DESC"
+
+compileOnConflict :: OnConflict -> Expr
+compileOnConflict onConflict =
+  Expr $ \usedNames -> case onConflict of
+    NoConflictHandling -> ""
+    OnAnyConflictDoNothing -> " ON CONFLICT DO NOTHING"
+    OnConflict fields assignments maybeWhere -> do
+      " ON CONFLICT (" <> separateBy ", " (code <$> fields) <> ") "
+        <> case assignments of
+          [] -> "DO NOTHING"
+          _ -> "DO UPDATE " <> separateBy ", " ["SET " <> code f <> " = " <> unExpr e usedNames | (f, e) <- assignments]
+        <> case maybeWhere of
+          Nothing -> ""
+          Just e -> " WHERE " <> unExpr e usedNames
 
 -------------------------------------------------------------------------------
 

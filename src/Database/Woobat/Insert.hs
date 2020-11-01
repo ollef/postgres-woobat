@@ -16,7 +16,6 @@ import qualified Data.HashMap.Lazy as HashMap
 import qualified Data.Text.Encoding as Text
 import qualified Database.PostgreSQL.LibPQ as LibPQ
 import Database.Woobat.Barbie
-import qualified Database.Woobat.Compiler as Compiler
 import Database.Woobat.Expr
 import Database.Woobat.Monad (MonadWoobat)
 import Database.Woobat.Query.Monad
@@ -49,7 +48,7 @@ insert table query (OnConflict onConflict_) returning =
     tableName = Text.encodeUtf8 $ Table.name table
     onConflictClause =
       Raw.unExpr
-        (Compiler.compileOnConflict $ onConflict_ table ConflictContext {existing = columnNameExprs, excluded = excluded_})
+        (Raw.compileOnConflict $ onConflict_ table ConflictContext {existing = columnNameExprs, excluded = excluded_})
         usedNames
     returningClause :: Raw.SQL
     getResults :: LibPQ.Result -> IO a
