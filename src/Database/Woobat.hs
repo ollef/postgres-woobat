@@ -6,9 +6,11 @@ module Database.Woobat (
   module Database.Woobat.Select,
   module Database.Woobat.Table,
   module Database.Woobat.Returning,
+  module Database.Woobat.Delete,
   module Database.Woobat.Insert,
 ) where
 
+import Database.Woobat.Delete
 import Database.Woobat.Expr hiding (Impossible, hkdRow, param, unsafeBinaryOperator, unsafeCastFromJSONString)
 import Database.Woobat.Insert hiding (where_)
 import Database.Woobat.Monad

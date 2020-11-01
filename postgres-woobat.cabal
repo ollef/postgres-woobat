@@ -27,6 +27,8 @@ library
       Database.Woobat
       Database.Woobat.Barbie
       Database.Woobat.Compiler
+      Database.Woobat.Delete
+      Database.Woobat.Delete.Builder
       Database.Woobat.Expr
       Database.Woobat.Expr.Types
       Database.Woobat.Insert
