@@ -7,6 +7,8 @@ module Database.Woobat.Compiler where
 import Data.ByteString (ByteString)
 import qualified Database.Woobat.Raw as Raw
 
+-- TODO move to Raw?
+
 compileSelect :: [Raw.SQL] -> Raw.Select -> Raw.SQL
 compileSelect exprs Raw.Select {from, wheres, groupBys, orderBys} =
   "SELECT " <> Raw.separateBy ", " exprs
