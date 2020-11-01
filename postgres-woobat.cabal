@@ -41,6 +41,8 @@ library
       Database.Woobat.Select
       Database.Woobat.Select.Builder
       Database.Woobat.Table
+      Database.Woobat.Update
+      Database.Woobat.Update.Builder
       Scratch
   other-modules:
       Paths_postgres_woobat
