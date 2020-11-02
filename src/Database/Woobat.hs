@@ -19,5 +19,5 @@ import Database.Woobat.Query
 import Database.Woobat.Returning
 import Database.Woobat.Scope
 import Database.Woobat.Select
-import Database.Woobat.Table
+import Database.Woobat.Table (Table, table)
 import Database.Woobat.Update
