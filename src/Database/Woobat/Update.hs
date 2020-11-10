@@ -29,7 +29,7 @@ update ::
   forall table a m.
   (MonadWoobat m, HKD.TraversableB (HKD table), Barbie.ProductB (HKD table)) =>
   Table table ->
-  (HKD table (Expr ()) -> Update () (HKD table (Expr ()), Returning a)) ->
+  (HKD table Expr -> Update (HKD table Expr, Returning a)) ->
   m a
 update table query =
   Raw.execute statement getResults

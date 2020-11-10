@@ -188,7 +188,7 @@ compileFrom from =
     Set expr returnRow ->
       expr <> " AS " <> returnRow
     Subquery exprAliases select alias ->
-      "(" <> compileSelect [expr <> " AS " <> code columnAlias | (expr, columnAlias) <- exprAliases] select <> ") AS " <> code alias
+      "LATERAL (" <> compileSelect [expr <> " AS " <> code columnAlias | (expr, columnAlias) <- exprAliases] select <> ") AS " <> code alias
     CrossJoin left right ->
       compileFrom left <> " CROSS JOIN " <> compileFrom right
     LeftJoin left on right ->

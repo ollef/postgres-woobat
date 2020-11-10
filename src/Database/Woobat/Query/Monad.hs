@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE QuantifiedConstraints #-}
 
 module Database.Woobat.Query.Monad where
 
@@ -9,19 +8,19 @@ import qualified Data.HashMap.Lazy as HashMap
 import Data.String
 import qualified Database.Woobat.Raw as Raw
 
-class (forall s. Monad (m s)) => MonadQuery m where
-  getUsedNames :: m s (HashMap ByteString Int)
-  putUsedNames :: HashMap ByteString Int -> m s ()
-  getFrom :: m s (Raw.From ())
-  putFrom :: Raw.From () -> m s ()
-  addWhere :: Raw.Expr -> m s ()
+class Monad m => MonadQuery m where
+  getUsedNames :: m (HashMap ByteString Int)
+  putUsedNames :: HashMap ByteString Int -> m ()
+  getFrom :: m (Raw.From ())
+  putFrom :: Raw.From () -> m ()
+  addWhere :: Raw.Expr -> m ()
 
-addFrom :: MonadQuery m => Raw.From () -> m s ()
+addFrom :: MonadQuery m => Raw.From () -> m ()
 addFrom from' = do
   from <- getFrom
   putFrom $ from <> from'
 
-freshName :: MonadQuery m => ByteString -> m s ByteString
+freshName :: MonadQuery m => ByteString -> m ByteString
 freshName suggestion = do
   used <- getUsedNames
   let count = HashMap.lookupDefault 0 suggestion used

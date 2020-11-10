@@ -1,5 +1,4 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedStrings #-}
 
 module Database.Woobat.Delete.Builder where
 
@@ -9,7 +8,7 @@ import Data.HashMap.Lazy (HashMap)
 import Database.Woobat.Query.Monad
 import qualified Database.Woobat.Raw as Raw
 
-newtype Delete s a = Delete (State DeleteState a)
+newtype Delete a = Delete (State DeleteState a)
   deriving (Functor, Applicative, Monad)
 
 data DeleteState = DeleteState
@@ -30,6 +29,6 @@ instance MonadQuery Delete where
   addWhere (Raw.Expr where_) =
     Delete $ modify $ \s -> s {wheres = pure $ where_ $ usedNames s}
 
-run :: HashMap ByteString Int -> Delete s a -> (a, DeleteState)
+run :: HashMap ByteString Int -> Delete a -> (a, DeleteState)
 run used (Delete s) =
   runState s DeleteState {usedNames = used, rawFrom = mempty, wheres = mempty}

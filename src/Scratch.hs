@@ -1,7 +1,4 @@
-{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedLabels #-}
@@ -9,9 +6,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# OPTIONS_GHC -fno-warn-orphans -Wno-simplifiable-class-constraints #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Scratch where
 
@@ -67,7 +63,7 @@ ppp =
     , newtype_ = Newtype "newtype"
     }
 
-descriptionQuery :: Select s (Expr s Text)
+descriptionQuery :: Select (Expr Text)
 descriptionQuery = do
   p <- from profile
   where_ $ row p ==. row (record ppp)
@@ -77,7 +73,7 @@ descriptionQuery = do
 selectDescriptionQuery :: (MonadWoobat m) => m [Text]
 selectDescriptionQuery = select descriptionQuery
 
-countProfiles :: Select s (Expr s Int, Expr s Int64, Expr s Text, Expr s Bool)
+countProfiles :: Select (Expr Int, Expr Int64, Expr Text, Expr Bool)
 countProfiles =
   aggregate $ do
     p <- from profile
@@ -89,42 +85,42 @@ countProfiles =
       , all_ $ p ^. #boolean
       )
 
-lol :: forall s. Select s (Expr s Text, Expr s (Maybe Text))
+lol :: Select (Expr Text, Expr (Maybe Text))
 lol = do
   p <- from profile
   p' <- leftJoin (from profile) $ \p' -> p' ^. #name ==. p ^. #name
   n <- view #name <$> from profile
   nom <- leftJoin (view #name <$> from profile) $ \n -> n ==. p ^. #name
-  let name1 :: Expr s Text
+  let name1 :: Expr Text
       name1 = p ^. #name
-      name2 :: Expr s (Maybe Text)
+      name2 :: Expr (Maybe Text)
       name2 = p' ^. #name
-      opt :: Expr s (Maybe Text)
+      opt :: Expr (Maybe Text)
       opt = p' ^. #optional
   pure (name1, name2)
 
 selectLol :: (MonadWoobat m) => m [(Text, Maybe Text)]
 selectLol = select lol
 
-profiles :: Select s (HKD Profile (Expr s))
+profiles :: Select (HKD Profile Expr)
 profiles = from profile
 
 selectProfiles :: (MonadWoobat m) => m [Profile]
 selectProfiles = select profiles
 
-leftProfiles :: Select s (HKD Profile (NullableF (Expr s)))
+leftProfiles :: Select (HKD Profile (NullableF Expr))
 leftProfiles = leftJoin (from profile) $ const true
 
 selectLeftProfiles :: (MonadWoobat m) => m [Maybe Profile]
 selectLeftProfiles = select leftProfiles
 
-unit :: Select s ()
+unit :: Select ()
 unit = pure ()
 
 selectUnit :: (MonadWoobat m) => m [()]
 selectUnit = select unit
 
-eqProfiles :: Select s (Expr s Bool, Expr s Bool)
+eqProfiles :: Select (Expr Bool, Expr Bool)
 eqProfiles = do
   p1 <- from profile
   p2 <- from profile

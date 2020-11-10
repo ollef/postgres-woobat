@@ -7,7 +7,6 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 module Database.Woobat.Query (
   module Database.Woobat.Query,
@@ -32,62 +31,63 @@ import Database.Woobat.Barbie hiding (result)
 import Database.Woobat.Expr
 import Database.Woobat.Query.Monad
 import qualified Database.Woobat.Raw as Raw
-import Database.Woobat.Scope
 import Database.Woobat.Select.Builder
 import Database.Woobat.Table (Table)
 import qualified Database.Woobat.Table as Table
 
 from ::
-  forall table s query.
+  forall table query.
   (MonadQuery query, HKD.FunctorB (HKD table)) =>
   Table table ->
-  query s (HKD table (Expr s))
+  query (HKD table Expr)
 from table = do
   let tableName =
         Text.encodeUtf8 $ Table.name table
   alias <- freshName tableName
-  let tableRow :: HKD table (Expr s)
+  let tableRow :: HKD table Expr
       tableRow =
         HKD.bmap (\(Const columnName) -> Expr $ Raw.codeExpr $ alias <> "." <> Text.encodeUtf8 columnName) $ Table.columnNames table
   addFrom $ Raw.Table tableName alias
   pure tableRow
 
-where_ :: (MonadQuery query, Same s t) => Expr s Bool -> query t ()
+where_ :: MonadQuery query => Expr Bool -> query ()
 where_ (Expr cond) =
   addWhere cond
 
-filter_ :: (Same s t, Same t u) => (a -> Expr s Bool) -> Select t a -> Select u a
+filter_ :: (a -> Expr Bool) -> Select a -> Select a
 filter_ f q = do
   a <- q
   where_ $ f a
   pure a
 
 leftJoin ::
-  forall a s t u query.
-  (MonadQuery query, Barbie (Expr (Inner s)) a) =>
-  Select (Inner s) a ->
-  (Outer s a -> Expr t Bool) ->
-  query u (Left s a)
+  forall a query.
+  (MonadQuery query, Barbie Expr a) =>
+  Select a ->
+  (FromBarbie Expr a Expr -> Expr Bool) ->
+  query (Left a)
 leftJoin (Select sel) on = do
   (innerResults, rightSelect) <- subquery sel
-  let innerResultsBarbie :: ToBarbie (Expr (Inner s)) a (Expr (Inner s))
+  let innerResultsBarbie :: ToBarbie Expr a Expr
       innerResultsBarbie = toBarbie innerResults
   leftFrom <- getFrom
   leftFrom' <- mapM (\() -> freshName "unit") leftFrom
   usedNames_ <- getUsedNames
   alias <- freshName "subquery"
-  namedResults :: ToBarbie (Expr (Inner s)) a (Product (Const ByteString) (Expr (Inner s))) <-
+  namedResults :: ToBarbie Expr a (Product (Const ByteString) Expr) <-
     HKD.btraverse
       ( \e -> do
           name <- freshName "col"
           pure $ Product (Const name) e
       )
       innerResultsBarbie
-  let outerResults :: ToBarbie (Expr (Inner s)) a (Expr (Inner s))
+  let outerResults :: ToBarbie Expr a Expr
       outerResults =
         HKD.bmap (\(Product (Const name) _) -> Expr $ Raw.codeExpr $ alias <> "." <> name) namedResults
       Expr rawOn =
-        on $ outer @s @a outerResults
+        on $ fromBarbie @Expr @a outerResults
+      nullableResults :: ToBarbie Expr a (NullableF Expr)
+      nullableResults = HKD.bmap (\(Expr e) -> NullableF (Expr e)) outerResults
   putFrom $
     Raw.LeftJoin
       leftFrom'
@@ -97,25 +97,25 @@ leftJoin (Select sel) on = do
           rightSelect
           alias
       )
-  return $ left @s @a outerResults
+  return $ fromBarbie @Expr @a nullableResults
 
 aggregate ::
-  forall a s t query.
-  (MonadQuery query, Barbie (AggregateExpr (Inner s)) a, Same s t) =>
-  Select (Inner s) a ->
-  query t (Aggregated s a)
+  forall a query.
+  (MonadQuery query, Barbie AggregateExpr a) =>
+  Select a ->
+  query (Aggregated a)
 aggregate (Select sel) = do
   (innerResults, aggSelect) <- subquery sel
   alias <- freshName "subquery"
   usedNames_ <- getUsedNames
-  namedResults :: ToBarbie (AggregateExpr (Inner s)) a (Product (Const ByteString) (AggregateExpr (Inner s))) <-
+  namedResults :: ToBarbie AggregateExpr a (Product (Const ByteString) AggregateExpr) <-
     HKD.btraverse
       ( \e -> do
           name <- freshName "col"
           pure $ Product (Const name) e
       )
       (toBarbie innerResults)
-  let outerResults :: ToBarbie (AggregateExpr (Inner s)) a (Expr (Inner s))
+  let outerResults :: ToBarbie AggregateExpr a Expr
       outerResults =
         HKD.bmap (\(Product (Const name) _) -> Expr $ Raw.codeExpr $ alias <> "." <> name) namedResults
   addFrom $
@@ -123,42 +123,39 @@ aggregate (Select sel) = do
       (Barbie.bfoldMap (\(Product (Const name) (AggregateExpr e)) -> pure (Raw.unExpr e usedNames_, name)) namedResults)
       aggSelect
       alias
-  return $ aggregated @s @a outerResults
+  return $ aggregated @a outerResults
 
 groupBy ::
-  (Same s t, Same t u) =>
-  Expr (Inner s) a ->
-  Select (Inner t) (AggregateExpr (Inner u) a)
+  Expr a ->
+  Select (AggregateExpr a)
 groupBy (Expr expr) = Select $ do
   usedNames_ <- gets usedNames
   addSelect mempty {Raw.groupBys = pure $ Raw.unExpr expr usedNames_}
   pure $ AggregateExpr expr
 
 -- | @VALUES@
-values :: Same s t => DatabaseType a => [a] -> Select t (Expr s a)
+values :: DatabaseType a => [a] -> Select (Expr a)
 values = expressions . map value
 
 -- | @VALUES@
 expressions ::
-  forall s t u a query.
+  forall a query.
   ( MonadQuery query
-  , Same s t
-  , Same t u
-  , Barbie (Expr (Inner s)) a
-  , Monoid (ToBarbie (Expr (Inner u)) a (Const ()))
-  , HKD.ConstraintsB (ToBarbie (Expr (Inner u)) a)
-  , HKD.AllB DatabaseType (ToBarbie (Expr (Inner u)) a)
+  , Barbie Expr a
+  , Monoid (ToBarbie Expr a (Const ()))
+  , HKD.ConstraintsB (ToBarbie Expr a)
+  , HKD.AllB DatabaseType (ToBarbie Expr a)
   ) =>
   [a] ->
-  query t (Outer s a)
+  query (FromBarbie Expr a Expr)
 expressions rows = do
   case rows of
     [] -> where_ false
     _ -> pure ()
-  let barbieRows :: [ToBarbie (Expr (Inner s)) a (Expr (Inner s))]
+  let barbieRows :: [ToBarbie Expr a Expr]
       barbieRows = toBarbie <$> rows
   rowAlias <- Raw.code <$> freshName "expressions"
-  aliasesBarbie :: ToBarbie (Expr (Inner s)) a (Const ByteString) <- Barbie.btraverse (\(Const ()) -> Const <$> freshName "col") mempty
+  aliasesBarbie :: ToBarbie Expr a (Const ByteString) <- Barbie.btraverse (\(Const ()) -> Const <$> freshName "col") mempty
   let aliases = Barbie.bfoldMap (\(Const a) -> [Raw.code a]) aliasesBarbie
   usedNames_ <- getUsedNames
   addFrom $
@@ -166,7 +163,7 @@ expressions rows = do
       ( "(VALUES "
           <> ( case barbieRows of
                 [] -> do
-                  let go :: forall f x. DatabaseType x => f x -> Expr (Inner s) x
+                  let go :: forall f x. DatabaseType x => f x -> Expr x
                       go _ = Expr $ "null::" <> typeName @x
                       nullRow = Barbie.bmapC @DatabaseType go aliasesBarbie
                   "(" <> Raw.separateBy ", " (Barbie.bfoldMap (\(Expr e) -> [Raw.unExpr e usedNames_]) nullRow) <> ")"
@@ -179,21 +176,20 @@ expressions rows = do
           <> Raw.separateBy ", " aliases
           <> ")"
       )
-  let resultBarbie :: ToBarbie (Expr (Inner s)) a (Expr (Inner s))
+  let resultBarbie :: ToBarbie Expr a Expr
       resultBarbie = Barbie.bmap (\(Const alias) -> Expr $ Raw.codeExpr alias) aliasesBarbie
-  pure $ outer @s @a resultBarbie
+  pure $ fromBarbie @Expr @a resultBarbie
 
 -- | @UNNEST@
 unnest ::
-  forall s t a query.
+  forall a query.
   ( MonadQuery query
-  , Same s t
   , Unnestable a
   ) =>
-  Expr s [a] ->
-  query t (Unnested a (Expr s))
+  Expr [a] ->
+  query (Unnested a Expr)
 unnest (Expr arr) = do
-  (returnRow, result) <- unnested @a @s
+  (returnRow, result) <- unnested @a
   usedNames_ <- getUsedNames
   addFrom $ Raw.Set ("UNNEST(" <> Raw.unExpr arr usedNames_ <> ")") returnRow
   pure result
@@ -204,8 +200,8 @@ type Unnested a f = FromBarbie f (UnnestedBarbie a f) f
 class Unnestable a where
   type UnnestedBarbie a :: (* -> *) -> *
   type UnnestedBarbie a = Singleton a
-  unnested :: forall s query. MonadQuery query => query s (Raw.SQL, Unnested a (Expr s))
-  default unnested :: (MonadQuery query, UnnestedBarbie a ~ Singleton a) => query s (Raw.SQL, Unnested a (Expr s))
+  unnested :: forall query. MonadQuery query => query (Raw.SQL, Unnested a Expr)
+  default unnested :: (MonadQuery query, UnnestedBarbie a ~ Singleton a) => query (Raw.SQL, Unnested a Expr)
   unnested = do
     alias <- Raw.code <$> freshName "unnested"
     pure (alias, Expr $ Raw.Expr $ const alias)
@@ -251,7 +247,7 @@ instance
     alias <- Raw.code <$> freshName "unnested"
     pure (alias <> "(" <> Raw.separateBy ", " returnRowList <> ")", result)
     where
-      go :: forall a s query. (UnnestableRowElement a, MonadQuery query) => Const () a -> query s (Const (Raw.SQL, Raw.Expr) a)
+      go :: forall a query. (UnnestableRowElement a, MonadQuery query) => Const () a -> query (Const (Raw.SQL, Raw.Expr) a)
       go (Const ()) = do
         colAlias <- freshName "col"
         pure $ Const (Raw.code colAlias, typeName @a)
@@ -266,8 +262,7 @@ unrow ::
   , HKD.ConstraintsB row
   , HKD.TraversableB row
   , Monoid (row (Const ()))
-  , Same s t
   ) =>
-  Expr s (Row row) ->
-  Select t (row (Expr s))
+  Expr (Row row) ->
+  Select (row Expr)
 unrow row_ = unnest $ array [row_]

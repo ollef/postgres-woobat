@@ -1,12 +1,8 @@
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
 module Select where
@@ -87,6 +83,27 @@ properties runWoobat =
           pure (v, mv)
     )
   ,
+    ( "lateral leftJoin"
+    , Hedgehog.property $ do
+        Expr.SomeIntegral gen <- Hedgehog.forAll Expr.genSomeIntegral
+        xs <- Hedgehog.forAll $ Gen.list (Range.linearFrom 0 0 10) gen
+        Operation _ dbOp haskellOp <- Hedgehog.forAll genOrdOperation
+        result <-
+          Hedgehog.evalM $
+            runWoobat $
+              select $ do
+                v <- values xs
+                mv' <-
+                  leftJoin
+                    (filter_ (<=. v) $ values xs)
+                    $ dbOp v
+                pure (v, mv')
+        result Hedgehog.=== do
+          v <- xs
+          mv <- leftJoinList (filter (<= v) xs) $ haskellOp v
+          pure (v, mv)
+    )
+  ,
     ( "aggregate"
     , Hedgehog.property $ do
         Expr.SomeIntegral gen <- Hedgehog.forAll Expr.genSomeIntegral
@@ -126,6 +143,24 @@ properties runWoobat =
             expected :: Ratio Integer
             expected = sum (fromIntegral <$> xs) % fromIntegral (length xs)
         result' Hedgehog.=== [if null xs then Nothing else Just (round expected :: Integer)]
+    )
+  ,
+    ( "lateral aggregate average"
+    , Hedgehog.property $ do
+        Expr.SomeIntegral gen <- Hedgehog.forAll $ Expr.genSomeRangedIntegral $ Range.linearFrom 0 (-1000) 1000
+        xs <- Hedgehog.forAll (Gen.list (Range.linearFrom 0 0 10) gen)
+        result <-
+          Hedgehog.evalM $
+            runWoobat $
+              select $ do
+                v <- values xs
+                aggregate $ do
+                  v' <- filter_ (<=. v) $ values xs
+                  pure $ sum_ v'
+        let expected = do
+              v <- xs
+              pure $ sum (fromIntegral <$> filter (<= v) xs)
+        result Hedgehog.=== expected
     )
   ,
     ( "multiple values"
@@ -214,40 +249,40 @@ properties runWoobat =
 
 -------------------------------------------------------------------------------
 
-data SelectSpec s a where
+data SelectSpec a where
   SelectSpec ::
-    Select s a ->
-    [Barbie.Result (Barbie.FromBarbie (Expr s) a Identity)] ->
-    SelectSpec s a
+    Select a ->
+    [Barbie.Result (Barbie.FromBarbie Expr a Identity)] ->
+    SelectSpec a
 
-data SomeSelectSpec s where
+data SomeSelectSpec where
   SomeSelectSpec ::
-    ( Show (Barbie.Result (Barbie.FromBarbie (Expr s) a Identity))
-    , Eq (Barbie.Result (Barbie.FromBarbie (Expr s) a Identity))
-    , Ord (Barbie.Result (Barbie.FromBarbie (Expr s) a Identity))
-    , Barbie (Expr s) a
-    , HKD.AllB DatabaseType (Barbie.ToBarbie (Expr s) a)
-    , HKD.ConstraintsB (Barbie.ToBarbie (Expr s) a)
-    , Barbie.Resultable (Barbie.FromBarbie (Expr s) a Identity)
+    ( Show (Barbie.Result (Barbie.FromBarbie Expr a Identity))
+    , Eq (Barbie.Result (Barbie.FromBarbie Expr a Identity))
+    , Ord (Barbie.Result (Barbie.FromBarbie Expr a Identity))
+    , Barbie Expr a
+    , HKD.AllB DatabaseType (Barbie.ToBarbie Expr a)
+    , HKD.ConstraintsB (Barbie.ToBarbie Expr a)
+    , Barbie.Resultable (Barbie.FromBarbie Expr a Identity)
     ) =>
-    Select s a ->
-    [Barbie.Result (Barbie.FromBarbie (Expr s) a Identity)] ->
-    SomeSelectSpec s
+    Select a ->
+    [Barbie.Result (Barbie.FromBarbie Expr a Identity)] ->
+    SomeSelectSpec
 
-instance s ~ () => Show (SomeSelectSpec s) where
+instance Show SomeSelectSpec where
   show (SomeSelectSpec sel result) = show (fst $ compile sel, result)
 
 data Operation where
   Operation ::
     String ->
-    (forall a s. Ord a => Expr s a -> Expr s a -> Expr s Bool) ->
+    (forall a. Ord a => Expr a -> Expr a -> Expr Bool) ->
     (forall a. Ord a => a -> a -> Bool) ->
     Operation
 
 instance Show Operation where
   show (Operation o _ _) = o
 
-genSelectSpec :: forall s a. DatabaseType a => Hedgehog.Gen a -> Hedgehog.Gen (SelectSpec s (Expr s a))
+genSelectSpec :: DatabaseType a => Hedgehog.Gen a -> Hedgehog.Gen (SelectSpec (Expr a))
 genSelectSpec gen =
   Gen.choice
     [ do
@@ -262,7 +297,7 @@ genSelectSpec gen =
         pure $ SelectSpec sel expected
     ]
 
-genSomeSelectSpec :: forall s. Hedgehog.Gen (SomeSelectSpec s)
+genSomeSelectSpec :: Hedgehog.Gen SomeSelectSpec
 genSomeSelectSpec =
   Gen.recursive
     Gen.choice
@@ -272,8 +307,8 @@ genSomeSelectSpec =
         pure $ SomeSelectSpec sel expected
     ]
     [ do
-        SomeSelectSpec sel1 expected1 <- genSomeSelectSpec @s
-        SomeSelectSpec sel2 expected2 <- genSomeSelectSpec @s
+        SomeSelectSpec sel1 expected1 <- genSomeSelectSpec
+        SomeSelectSpec sel2 expected2 <- genSomeSelectSpec
         let sel = (,) <$> sel1 <*> sel2
             expected = (,) <$> expected1 <*> expected2
         pure $ SomeSelectSpec sel expected
@@ -328,7 +363,7 @@ genSomeSelectSpec =
             expected' = Expr.TableTwo <$> expected1 <*> expected2
         pure $ SomeSelectSpec sel' expected'
     , do
-        SomeSelectSpec sel expected <- genSomeSelectSpec @s
+        SomeSelectSpec sel expected <- genSomeSelectSpec
         let sel' = pure $ exists sel
             expected' = [not $ null expected]
         pure $ SomeSelectSpec sel' expected'

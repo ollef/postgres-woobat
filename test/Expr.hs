@@ -2,7 +2,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
@@ -187,7 +186,7 @@ properties runWoobat =
             runWoobat $
               select $
                 pure
-                  ( nothing @_ @Int
+                  ( nothing @Int
                   , just $ value x
                   , isNothing_ $ value mx
                   , isJust_ $ value mx
@@ -220,7 +219,7 @@ data SomeFractional where
     , Show a
     , Ord a
     , Fractional a
-    , forall s. Fractional (Expr s a)
+    , Fractional (Expr a)
     , FromJSON a
     , NonNestedMaybe a
     , Nullable a ~ Maybe a

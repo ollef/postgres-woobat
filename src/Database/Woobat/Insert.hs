@@ -30,9 +30,9 @@ insert ::
   forall table a m.
   (MonadWoobat m, HKD.TraversableB (HKD table)) =>
   Table table ->
-  Select () (HKD table (Expr ())) ->
+  Select (HKD table Expr) ->
   OnConflict table ->
-  (HKD table (Expr ()) -> Returning a) ->
+  (HKD table Expr -> Returning a) ->
   m a
 insert table query (OnConflict onConflict_) returning =
   Raw.execute statement getResults
@@ -73,9 +73,9 @@ newtype OnConflict table = OnConflict (Table table -> ConflictContext table -> R
 
 data ConflictContext table = ConflictContext
   { -- | The existing data in the table row
-    existing :: HKD table (Expr ())
+    existing :: HKD table Expr
   , -- | The data that caused a conflict during insertion, i.e. the new data
-    excluded :: HKD table (Expr ())
+    excluded :: HKD table Expr
   }
 
 noConflictHandling :: OnConflict table
@@ -102,11 +102,11 @@ data ConflictingField table where
 newtype ConflictAction table = ConflictAction (Table table -> ([(ByteString, Raw.Expr)], Maybe Raw.Expr))
 
 data Assignment table where
-  (:=) :: (forall f. Lens' (HKD table f) (f a)) -> Expr () a -> Assignment table
+  (:=) :: (forall f. Lens' (HKD table f) (f a)) -> Expr a -> Assignment table
 
 setAll ::
   (Barbie.TraversableB (HKD table), Barbie.ProductB (HKD table)) =>
-  HKD table (Expr ()) ->
+  HKD table Expr ->
   ConflictAction table
 setAll assignments = ConflictAction $ \table ->
   ( Barbie.bfoldMap (\(Const x) -> [x]) $
@@ -126,7 +126,7 @@ set assignments = ConflictAction $ \table ->
 doNothing :: a -> ConflictAction table
 doNothing = const $ set []
 
-where_ :: ConflictAction table -> Expr () Bool -> ConflictAction table
+where_ :: ConflictAction table -> Expr Bool -> ConflictAction table
 where_ (ConflictAction f) (Expr where') = ConflictAction $ \table -> do
   let (assignments, maybeWhere) = f table
   case maybeWhere of

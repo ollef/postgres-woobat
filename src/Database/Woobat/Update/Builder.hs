@@ -1,5 +1,4 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedStrings #-}
 
 module Database.Woobat.Update.Builder where
 
@@ -9,7 +8,7 @@ import Data.HashMap.Lazy (HashMap)
 import Database.Woobat.Query.Monad
 import qualified Database.Woobat.Raw as Raw
 
-newtype Update s a = Update (State UpdateState a)
+newtype Update a = Update (State UpdateState a)
   deriving (Functor, Applicative, Monad)
 
 data UpdateState = UpdateState
@@ -30,6 +29,6 @@ instance MonadQuery Update where
   addWhere (Raw.Expr where_) =
     Update $ modify $ \s -> s {wheres = pure $ where_ $ usedNames s}
 
-run :: HashMap ByteString Int -> Update s a -> (a, UpdateState)
+run :: HashMap ByteString Int -> Update a -> (a, UpdateState)
 run used (Update s) =
   runState s UpdateState {usedNames = used, rawFrom = mempty, wheres = mempty}

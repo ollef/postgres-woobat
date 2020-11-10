@@ -36,7 +36,6 @@ library
       Database.Woobat.Query.Monad
       Database.Woobat.Raw
       Database.Woobat.Returning
-      Database.Woobat.Scope
       Database.Woobat.Select
       Database.Woobat.Select.Builder
       Database.Woobat.Table

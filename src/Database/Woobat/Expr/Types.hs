@@ -4,11 +4,11 @@ module Database.Woobat.Expr.Types where
 
 import qualified Database.Woobat.Raw as Raw
 
-newtype Expr s a = Expr Raw.Expr
+newtype Expr a = Expr Raw.Expr
 
-newtype AggregateExpr s a = AggregateExpr Raw.Expr
+newtype AggregateExpr a = AggregateExpr Raw.Expr
 
-type NullableExpr s a = NullableF (Expr s) a
+type NullableExpr a = NullableF Expr a
 
 newtype NullableF f a = NullableF (f (Nullable a))
 

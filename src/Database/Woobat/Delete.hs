@@ -27,7 +27,7 @@ delete ::
   forall table a m.
   (MonadWoobat m, HKD.TraversableB (HKD table)) =>
   Table table ->
-  (HKD table (Expr ()) -> Delete () (Returning a)) ->
+  (HKD table Expr -> Delete (Returning a)) ->
   m a
 delete table query =
   Raw.execute statement getResults

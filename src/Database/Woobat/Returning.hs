@@ -11,26 +11,26 @@ import Database.Woobat.Expr
 data Returning a where
   ReturningNothing :: Returning ()
   Returning ::
-    ( Barbie (Expr ()) a
-    , HKD.AllB DatabaseType (ToBarbie (Expr ()) a)
-    , HKD.ConstraintsB (ToBarbie (Expr ()) a)
-    , Resultable (FromBarbie (Expr ()) a Identity)
+    ( Barbie Expr a
+    , HKD.AllB DatabaseType (ToBarbie Expr a)
+    , HKD.ConstraintsB (ToBarbie Expr a)
+    , Resultable (FromBarbie Expr a Identity)
     ) =>
     a ->
-    Returning [Result (FromBarbie (Expr ()) a Identity)]
+    Returning [Result (FromBarbie Expr a Identity)]
   ReturningRowCount :: Returning Int
 
 returningNothing :: a -> Returning ()
 returningNothing = const ReturningNothing
 
 returning ::
-  ( Barbie (Expr ()) a
-  , HKD.AllB DatabaseType (ToBarbie (Expr ()) a)
-  , HKD.ConstraintsB (ToBarbie (Expr ()) a)
-  , Resultable (FromBarbie (Expr ()) a Identity)
+  ( Barbie Expr a
+  , HKD.AllB DatabaseType (ToBarbie Expr a)
+  , HKD.ConstraintsB (ToBarbie Expr a)
+  , Resultable (FromBarbie Expr a Identity)
   ) =>
   a ->
-  Returning [Result (FromBarbie (Expr ()) a Identity)]
+  Returning [Result (FromBarbie Expr a Identity)]
 returning = Returning
 
 returningRowCount :: a -> Returning Int

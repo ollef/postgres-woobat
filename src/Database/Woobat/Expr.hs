@@ -47,7 +47,6 @@ import Database.Woobat.Barbie
 import Database.Woobat.Expr.Types
 import Database.Woobat.Query.Monad
 import qualified Database.Woobat.Raw as Raw
-import qualified Database.Woobat.Scope as Scope
 import Database.Woobat.Select.Builder
 import GHC.Generics
 import GHC.TypeLits (ErrorMessage (..), TypeError)
@@ -59,20 +58,20 @@ import qualified PostgreSQL.Binary.Encoding as Encoding
 
 -- * Strings
 
-instance (IsString a, DatabaseType a) => IsString (Expr s a) where
+instance (IsString a, DatabaseType a) => IsString (Expr a) where
   fromString = value . fromString
 
-instance Semigroup (Expr s Text) where
+instance Semigroup (Expr Text) where
   (<>) = unsafeBinaryOperator "||"
 
-instance (DatabaseType a, Semigroup (Expr s a), Monoid a) => Monoid (Expr s a) where
+instance (DatabaseType a, Semigroup (Expr a), Monoid a) => Monoid (Expr a) where
   mempty = value mempty
 
 -------------------------------------------------------------------------------
 
 -- * Numerics
 
-instance (Num a, DatabaseType a) => Num (Expr s a) where
+instance (Num a, DatabaseType a) => Num (Expr a) where
   fromInteger = value . fromInteger
   (+) = unsafeBinaryOperator "+"
   (-) = unsafeBinaryOperator "-"
@@ -81,18 +80,18 @@ instance (Num a, DatabaseType a) => Num (Expr s a) where
   signum (Expr a) = Expr $ "SIGN(" <> a <> ")::" <> typeName @a
 
 -- | @%@
-mod_ :: Num a => Expr s a -> Expr s a -> Expr s a
+mod_ :: Num a => Expr a -> Expr a -> Expr a
 mod_ = unsafeBinaryOperator "%"
 
-instance {-# OVERLAPPABLE #-} (Integral a, DatabaseType a) => Fractional (Expr s a) where
+instance {-# OVERLAPPABLE #-} (Integral a, DatabaseType a) => Fractional (Expr a) where
   fromRational = value . (truncate :: Double -> a) . fromRational
   (/) = unsafeBinaryOperator "/"
 
-instance Fractional (Expr s Float) where
+instance Fractional (Expr Float) where
   fromRational = value . fromRational
   (/) = unsafeBinaryOperator "/"
 
-instance Fractional (Expr s Double) where
+instance Fractional (Expr Double) where
   fromRational = value . fromRational
   (/) = unsafeBinaryOperator "/"
 
@@ -100,14 +99,14 @@ instance Fractional (Expr s Double) where
 
 -- * Equality
 
-class DatabaseEq s a | a -> s where
-  (==.) :: a -> a -> Expr s Bool
-  (/=.) :: a -> a -> Expr s Bool
+class DatabaseEq a where
+  (==.) :: a -> a -> Expr Bool
+  (/=.) :: a -> a -> Expr Bool
   infix 4 ==., /=.
 
 -- | Handles nulls the same way as Haskell's equality operators using
 -- @IS [NOT] DISTINCT FROM@.
-instance DatabaseEq s (Expr s a) where
+instance DatabaseEq (Expr a) where
   (==.) = unsafeBinaryOperator "IS NOT DISTINCT FROM"
   (/=.) = unsafeBinaryOperator "IS DISTINCT FROM"
 
@@ -116,14 +115,14 @@ instance
   ( HKD.ConstraintsB (HKD table)
   , HKD.TraversableB (HKD table)
   , Barbie.ProductB (HKD table)
-  , Barbie.AllBF (DatabaseEq s) (Expr s) (HKD table)
+  , Barbie.AllBF DatabaseEq Expr (HKD table)
   ) =>
-  DatabaseEq s (HKD table (Expr s))
+  DatabaseEq (HKD table Expr)
   where
   table1 ==. table2 =
     foldr_ (&&.) true $
       Barbie.bfoldMap (\(Const e) -> [e]) $
-        Barbie.bmapC @(Barbie.ClassF (DatabaseEq s) (Expr s)) (\(Pair x y) -> Const $ x ==. y) $
+        Barbie.bmapC @(Barbie.ClassF DatabaseEq Expr) (\(Pair x y) -> Const $ x ==. y) $
           Barbie.bzip table1 table2
     where
       foldr_ _ b [] = b
@@ -132,14 +131,14 @@ instance
   table1 /=. table2 =
     foldr_ (||.) false $
       Barbie.bfoldMap (\(Const e) -> [e]) $
-        Barbie.bmapC @(Barbie.ClassF (DatabaseEq s) (Expr s)) (\(Pair x y) -> Const $ x /=. y) $
+        Barbie.bmapC @(Barbie.ClassF DatabaseEq Expr) (\(Pair x y) -> Const $ x /=. y) $
           Barbie.bzip table1 table2
     where
       foldr_ _ b [] = b
       foldr_ f _ as = foldr1 f as
 
 -- | @CASE WHEN@
-if_ :: (Scope.Same s t, Scope.Same t u) => [(Expr s Bool, Expr t a)] -> Expr u a -> Expr u a
+if_ :: [(Expr Bool, Expr a)] -> Expr a -> Expr a
 if_ [] def = def
 if_ branches (Expr def) =
   Expr $ "(CASE " <> mconcat ["WHEN " <> cond <> " THEN " <> branch <> " " | (Expr cond, Expr branch) <- branches] <> "ELSE " <> def <> " END)"
@@ -148,28 +147,28 @@ if_ branches (Expr def) =
 
 -- * Booleans
 
-true :: Expr s Bool
+true :: Expr Bool
 true = value True
 
-false :: Expr s Bool
+false :: Expr Bool
 false = value False
 
 -- | @NOT(x)@
-not_ :: Expr s Bool -> Expr s Bool
+not_ :: Expr Bool -> Expr Bool
 not_ (Expr e) = Expr $ "NOT(" <> e <> ")"
 
-ifThenElse :: (Scope.Same s t, Scope.Same t u) => Expr s Bool -> Expr t a -> Expr u a -> Expr s a
+ifThenElse :: Expr Bool -> Expr a -> Expr a -> Expr a
 ifThenElse cond t f =
   if_ [(cond, t)] f
 
 -- | @AND@
-(&&.) :: Scope.Same s t => Expr s Bool -> Expr t Bool -> Expr s Bool
+(&&.) :: Expr Bool -> Expr Bool -> Expr Bool
 (&&.) = unsafeBinaryOperator "AND"
 
 infixr 3 &&.
 
 -- | @OR@
-(||.) :: Scope.Same s t => Expr s Bool -> Expr t Bool -> Expr s Bool
+(||.) :: Expr Bool -> Expr Bool -> Expr Bool
 (||.) = unsafeBinaryOperator "OR"
 
 infixr 2 ||.
@@ -178,40 +177,40 @@ infixr 2 ||.
 
 -- * Comparison operators
 
-(<.) :: Scope.Same s t => Expr s a -> Expr t a -> Expr s Bool
+(<.) :: Expr a -> Expr a -> Expr Bool
 (<.) = unsafeBinaryOperator "<"
 
-(<=.) :: Scope.Same s t => Expr s a -> Expr t a -> Expr s Bool
+(<=.) :: Expr a -> Expr a -> Expr Bool
 (<=.) = unsafeBinaryOperator "<="
 
-(>.) :: Scope.Same s t => Expr s a -> Expr t a -> Expr s Bool
+(>.) :: Expr a -> Expr a -> Expr Bool
 (>.) = unsafeBinaryOperator ">"
 
-(>=.) :: Scope.Same s t => Expr s a -> Expr t a -> Expr s Bool
+(>=.) :: Expr a -> Expr a -> Expr Bool
 (>=.) = unsafeBinaryOperator ">="
 
 infix 4 <., <=., >., >=.
 
 -- @GREATEST(xs)@
-maximum_ :: NonEmpty (Expr s a) -> Expr s a
+maximum_ :: NonEmpty (Expr a) -> Expr a
 maximum_ args = Expr $ "GREATEST(" <> Raw.separateBy ", " (coerce <$> toList args) <> ")"
 
 -- @LEAST(xs)@
-minimum_ :: NonEmpty (Expr s a) -> Expr s a
+minimum_ :: NonEmpty (Expr a) -> Expr a
 minimum_ args = Expr $ "LEAST(" <> Raw.separateBy ", " (coerce <$> toList args) <> ")"
 -------------------------------------------------------------------------------
 
 -- * Aggregates
 
-count :: Expr s a -> AggregateExpr s Int
+count :: Expr a -> AggregateExpr Int
 count (Expr e) = AggregateExpr $ "COUNT(" <> e <> ")"
 
 -- | @COUNT(*)@
-countAll :: AggregateExpr s Int
+countAll :: AggregateExpr Int
 countAll = AggregateExpr "COUNT(*)"
 
 -- | @AVG(x)@
-average :: Num a => Expr s a -> AggregateExpr s (Maybe (Averaged a))
+average :: Num a => Expr a -> AggregateExpr (Maybe (Averaged a))
 average (Expr e) = AggregateExpr $ "AVG(" <> e <> ")"
 
 -- | "numeric for any integer-type argument, double precision for a floating-point argument, otherwise the same as the argument data type"
@@ -224,23 +223,23 @@ type family Averaged a where
   Averaged a = a
 
 -- | @COALESCE(BOOL_AND(x), TRUE)@
-all_ :: Expr s Bool -> AggregateExpr s Bool
+all_ :: Expr Bool -> AggregateExpr Bool
 all_ (Expr e) = fromMaybeAggregate true $ AggregateExpr $ "BOOL_AND(" <> e <> ")"
 
 -- | @COALESCE(BOOL_OR(x), FALSE)@
-any_ :: Expr s Bool -> AggregateExpr s Bool
+any_ :: Expr Bool -> AggregateExpr Bool
 any_ (Expr e) = fromMaybeAggregate false $ AggregateExpr $ "BOOL_OR(" <> e <> ")"
 
 -- | @MAX(x)@
-max_ :: Expr s a -> AggregateExpr s (Maybe a)
+max_ :: Expr a -> AggregateExpr (Maybe a)
 max_ (Expr e) = AggregateExpr $ "MAX(" <> e <> ")"
 
 -- | @MIN(x)@
-min_ :: Expr s a -> AggregateExpr s (Maybe a)
+min_ :: Expr a -> AggregateExpr (Maybe a)
 min_ (Expr e) = AggregateExpr $ "MIN(" <> e <> ")"
 
 -- | @COALESCE(SUM(x), 0)@
-sum_ :: forall s a. (Num a, Num (Summed a), NonNestedMaybe (Summed a), DatabaseType (Summed a)) => Expr s a -> AggregateExpr s (Summed a)
+sum_ :: forall a. (Num a, Num (Summed a), NonNestedMaybe (Summed a), DatabaseType (Summed a)) => Expr a -> AggregateExpr (Summed a)
 sum_ (Expr e) = fromMaybeAggregate 0 $ AggregateExpr $ "SUM(" <> e <> ")"
 
 -- | "bigint for smallint or int arguments, numeric for bigint arguments, otherwise the same as the argument data type"
@@ -252,48 +251,48 @@ type family Summed a where
   Summed a = a
 
 -- | @COALESCE(ARRAY_AGG(x), ARRAY[])@
-arrayAggregate :: (NonNestedArray a, DatabaseType a) => Expr s a -> AggregateExpr s [a]
+arrayAggregate :: (NonNestedArray a, DatabaseType a) => Expr a -> AggregateExpr [a]
 arrayAggregate (Expr e) = fromMaybeAggregate (array []) $ AggregateExpr $ "ARRAY_AGG(" <> e <> ")"
 
 -- | @JSONB_AGG(x)@
-jsonAggregate :: (NonNestedArray a, DatabaseType a) => Expr s (JSONB a) -> AggregateExpr s (JSONB [a])
+jsonAggregate :: (NonNestedArray a, DatabaseType a) => Expr (JSONB a) -> AggregateExpr (JSONB [a])
 jsonAggregate (Expr e) = fromMaybeAggregate (toJSONB $ array []) $ AggregateExpr $ "JSONB_AGG(" <> e <> ")"
 
 -- | @COALESCE(x, def)@
-fromMaybeAggregate :: NonNestedMaybe a => Expr s a -> AggregateExpr s (Maybe a) -> AggregateExpr s a
+fromMaybeAggregate :: NonNestedMaybe a => Expr a -> AggregateExpr (Maybe a) -> AggregateExpr a
 fromMaybeAggregate (Expr def) (AggregateExpr m) = AggregateExpr $ "COALESCE(" <> m <> ", " <> def <> ")"
 
 -------------------------------------------------------------------------------
 
 -- * Arrays
 
-array :: forall s a. (NonNestedArray a, DatabaseType a) => [Expr s a] -> Expr s [a]
+array :: forall a. (NonNestedArray a, DatabaseType a) => [Expr a] -> Expr [a]
 array exprs =
   Expr $
     "ARRAY[" <> Raw.separateBy ", " (coerce <$> exprs) <> "]::" <> typeName @[a]
 
-arrayOf :: (NonNestedArray a, Scope.Same s t) => Select s (Expr t a) -> Expr t [a]
+arrayOf :: NonNestedArray a => Select (Expr a) -> Expr [a]
 arrayOf select = Expr $
   Raw.Expr $ \usedNames_ -> do
     let (Expr expr, st) = run usedNames_ select
     "ARRAY(" <> Raw.compileSelect [Raw.unExpr expr $ usedNames st] (rawSelect st) <> ")"
 
-instance Semigroup (Expr s [a]) where
+instance Semigroup (Expr [a]) where
   (<>) = unsafeBinaryOperator "||"
 
 -- | Array contains
-(@>) :: Expr s [a] -> Expr s [a] -> Expr s Bool
+(@>) :: Expr [a] -> Expr [a] -> Expr Bool
 (@>) = unsafeBinaryOperator "@>"
 
 -- | Array is contained by
-(<@) :: Expr s [a] -> Expr s [a] -> Expr s Bool
+(<@) :: Expr [a] -> Expr [a] -> Expr Bool
 (<@) = unsafeBinaryOperator "<@"
 
 -- | Arrays overlap (have elements in common). Postgres @&&@ operator.
-overlap :: Expr s [a] -> Expr s [a] -> Expr s Bool
+overlap :: Expr [a] -> Expr [a] -> Expr Bool
 overlap = unsafeBinaryOperator "&&"
 
-arrayLength :: Expr s [a] -> Expr s Int
+arrayLength :: Expr [a] -> Expr Int
 arrayLength (Expr e) = Expr $ "COALESCE(ARRAY_LENGTH(" <> e <> ", 1), 0)"
 
 instance (NonNestedArray a, DatabaseType a) => DatabaseType [a] where
@@ -335,7 +334,7 @@ record ::
   , Generic row
   ) =>
   row ->
-  HKD row (Expr s)
+  HKD row Expr
 record =
   Barbie.bmapC @DatabaseType (\(Identity a) -> value a) . HKD.deconstruct
 
@@ -361,9 +360,9 @@ deriving instance Eq (row Identity) => Eq (Row row)
 deriving instance Ord (row Identity) => Ord (Row row)
 deriving instance Show (row Identity) => Show (Row row)
 
-row :: forall s row. Barbie (Expr s) row => row -> Expr s (Row (ToBarbie (Expr s) row))
+row :: forall row. Barbie Expr row => row -> Expr (Row (ToBarbie Expr row))
 row r = do
-  let barbieRow :: ToBarbie (Expr s) row (Expr s)
+  let barbieRow :: ToBarbie Expr row Expr
       barbieRow = toBarbie r
   hkdRow barbieRow
 
@@ -373,12 +372,12 @@ fromJSONBRow ::
   , HKD.ConstraintsB row
   , Monoid (row (Const ()))
   ) =>
-  Expr s (JSONB (Row row)) ->
-  row (Expr s)
+  Expr (JSONB (Row row)) ->
+  row Expr
 fromJSONBRow (Expr json) =
   flip evalState 1 $ Barbie.btraverseC @FromJSON go mempty
   where
-    go :: forall s x. FromJSON x => Const () x -> State Int (Expr s x)
+    go :: forall x. FromJSON x => Const () x -> State Int (Expr x)
     go (Const ()) = do
       i <- get
       put $! i + 1
@@ -426,7 +425,7 @@ instance
 newtype JSONB a = JSONB Aeson.Value
 
 class DatabaseType a => FromJSON a where
-  fromJSON :: Expr s (JSONB a) -> Expr s a
+  fromJSON :: Expr (JSONB a) -> Expr a
   fromJSON (Expr e) = Expr $ e <> "::" <> typeName @Text <> "::" <> typeName @a
 
 instance DatabaseType (JSONB a) where
@@ -439,7 +438,7 @@ instance DatabaseType (JSONB a) where
 instance FromJSON (JSONB a) where
   fromJSON = coerce
 
-toJSONB :: forall s a. DatabaseType a => Expr s a -> Expr s (JSONB a)
+toJSONB :: forall a. DatabaseType a => Expr a -> Expr (JSONB a)
 toJSONB (Expr e) = case decoder @a of
   Decoder _ ->
     Expr $ "TO_JSONB(" <> e <> ")"
@@ -447,7 +446,7 @@ toJSONB (Expr e) = case decoder @a of
     -- The row here means that we get a non-null JSONB containing null for a null input instead of a null JSONB
     Expr $ "(TO_JSONB(ROW(" <> e <> "))->'f1')"
 
-jsonbArrayElements :: MonadQuery m => Scope.Same s t => Expr s (JSONB [a]) -> m t (Expr s (JSONB a))
+jsonbArrayElements :: MonadQuery m => Expr (JSONB [a]) -> m (Expr (JSONB a))
 jsonbArrayElements (Expr arr) = do
   returnAlias <- Raw.code <$> freshName "array_element"
   usedNames_ <- getUsedNames
@@ -458,25 +457,25 @@ jsonbArrayElements (Expr arr) = do
 -- * Nullable types
 
 -- | @null@
-nothing :: forall s a. DatabaseType a => Expr s (Maybe a)
+nothing :: forall a. DatabaseType a => Expr (Maybe a)
 nothing = Expr $ "null::" <> typeName @a
 
-just :: (NonNestedMaybe a, DatabaseType a) => Expr s a -> Expr s (Maybe a)
+just :: (NonNestedMaybe a, DatabaseType a) => Expr a -> Expr (Maybe a)
 just = coerce
 
 -- | @x IS NOT DISTINCT FROM null@
-isNothing_ :: DatabaseType a => Expr s (Maybe a) -> Expr s Bool
+isNothing_ :: DatabaseType a => Expr (Maybe a) -> Expr Bool
 isNothing_ e = e ==. nothing
 
 -- | @x IS DISTINCT FROM null@
-isJust_ :: DatabaseType a => Expr s (Maybe a) -> Expr s Bool
+isJust_ :: DatabaseType a => Expr (Maybe a) -> Expr Bool
 isJust_ e = e /=. nothing
 
-maybe_ :: (NonNestedMaybe a, DatabaseType a) => Expr s b -> (Expr s a -> Expr s b) -> Expr s (Maybe a) -> Expr s b
+maybe_ :: (NonNestedMaybe a, DatabaseType a) => Expr b -> (Expr a -> Expr b) -> Expr (Maybe a) -> Expr b
 maybe_ def f m = ifThenElse (isNothing_ m) def (f $ coerce m)
 
 -- | @COALESCE(x, def)@
-fromMaybe_ :: NonNestedMaybe a => Expr s a -> Expr s (Maybe a) -> Expr s a
+fromMaybe_ :: NonNestedMaybe a => Expr a -> Expr (Maybe a) -> Expr a
 fromMaybe_ (Expr def) (Expr m) = Expr $ "COALESCE(" <> m <> ", " <> def <> ")"
 
 instance (NonNestedMaybe a, DatabaseType a) => DatabaseType (Maybe a) where
@@ -507,7 +506,7 @@ type family NonNestedMaybe a :: Constraint where
 -- * Subqueries
 
 -- | @EXISTS(s)@
-exists :: Select s a -> Expr s Bool
+exists :: Select a -> Expr Bool
 exists select = Expr $
   Raw.Expr $ \usedNames_ -> do
     let (_, st) = run usedNames_ select
@@ -519,7 +518,7 @@ exists select = Expr $
 
 -- | Types with a corresponding database type
 class DatabaseType a where
-  value :: a -> Expr s a
+  value :: a -> Expr a
   value a = Expr $ encode a <> "::" <> typeName @a
   typeName :: Raw.Expr
   encode :: a -> Raw.Expr
@@ -715,15 +714,15 @@ param :: forall a. (a -> Encoding) -> a -> Raw.Expr
 param encoding =
   Raw.paramExpr . Builder.builderBytes . encoding
 
-unsafeBinaryOperator :: Scope.Same s t => Raw.Expr -> Expr s a -> Expr t b -> Expr s c
+unsafeBinaryOperator :: Raw.Expr -> Expr a -> Expr b -> Expr c
 unsafeBinaryOperator name (Expr x) (Expr y) = Expr $ "(" <> x <> " " <> name <> " " <> y <> ")"
 
-unsafeCastFromJSONString :: forall s a. DatabaseType a => Expr s (JSONB a) -> Expr s a
+unsafeCastFromJSONString :: forall a. DatabaseType a => Expr (JSONB a) -> Expr a
 unsafeCastFromJSONString (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> typeName @a
 
 class Impossible where
   impossible :: a
 
-hkdRow :: HKD.TraversableB row => row (Expr s) -> Expr s (Row row)
+hkdRow :: HKD.TraversableB row => row Expr -> Expr (Row row)
 hkdRow r = do
   Expr $ "ROW(" <> Raw.separateBy ", " (Barbie.bfoldMap (\(Expr e) -> [e]) r) <> ")"
