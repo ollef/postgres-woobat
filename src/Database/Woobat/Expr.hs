@@ -169,7 +169,7 @@ ifThenElse cond t f =
 infixr 3 &&.
 
 -- | @OR@
-(||.) :: Scope.Same s t => Expr s a -> Expr t a -> Expr s Bool
+(||.) :: Scope.Same s t => Expr s Bool -> Expr t Bool -> Expr s Bool
 (||.) = unsafeBinaryOperator "OR"
 
 infixr 2 ||.
