@@ -4,6 +4,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
 
 module Database.Woobat.Raw where
 
@@ -232,7 +233,7 @@ execute :: Monad.MonadWoobat m => SQL -> (LibPQ.Result -> IO a) -> m a
 execute sql onResult =
   Monad.withConnection $ \connection -> liftIO $ do
     let (code_, params) = separateCodeAndParams sql
-        params' = fmap (\p -> (LibPQ.Oid 0, p, LibPQ.Binary)) <$> params
+        params' = fmap (LibPQ.Oid 0,,LibPQ.Binary) <$> params
     maybeResult <- LibPQ.execParams connection code_ params' LibPQ.Binary
     case maybeResult of
       Nothing -> throwM $ Monad.ConnectionError LibPQ.ConnectionBad
