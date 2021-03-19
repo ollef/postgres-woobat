@@ -67,6 +67,12 @@ insert table query (OnConflict onConflict_) returning =
         <> onConflictClause
         <> returningClause
 
+-- | The default value for a column.
+-- Warning: This is only valid in insertions, but this is not checked.
+default_ :: Expr a
+default_ =
+  Expr "DEFAULT"
+
 newtype OnConflict table = OnConflict (Table table -> ConflictContext table -> Raw.OnConflict)
 
 data ConflictContext table = ConflictContext

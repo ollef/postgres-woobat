@@ -12,7 +12,7 @@ module Database.Woobat (
 
 import Database.Woobat.Delete
 import Database.Woobat.Expr hiding (Impossible, hkdRow, param, unsafeBinaryOperator, unsafeCastFromJSONString)
-import Database.Woobat.Insert hiding (where_)
+import Database.Woobat.Insert hiding (default_, where_)
 import Database.Woobat.Monad
 import Database.Woobat.Query
 import Database.Woobat.Returning
