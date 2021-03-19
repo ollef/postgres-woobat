@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -11,6 +12,7 @@
 
 module Scratch where
 
+import qualified Barbies
 import Control.Lens hiding (from)
 import Data.Generic.HKD (HKD)
 import qualified Data.Generic.HKD as HKD
@@ -129,3 +131,15 @@ eqProfiles = do
 
 selectEqProfiles :: (MonadWoobat m) => m [(Bool, Bool)]
 selectEqProfiles = select eqProfiles
+
+data HKDResult f = HKDResult
+  { profile1 :: HKD Profile f
+  , profile2 :: HKD Profile f
+  }
+  deriving (Generic, Barbies.FunctorB, Barbies.TraversableB, Barbies.ConstraintsB)
+
+hkdQuery :: Select (HKDResult Expr)
+hkdQuery = HKDResult <$> profiles <*> profiles
+
+selectHKDQuery :: MonadWoobat m => m [HKDResult Identity]
+selectHKDQuery = select hkdQuery

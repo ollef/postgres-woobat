@@ -185,29 +185,43 @@ aggregated =
   fromBarbie @AggregateExpr @a
 
 -------------------------------------------------------------------------------
+
+type family Result a where
+  Result () = ()
+  Result (Identity a) = a
+  Result (Singleton a Identity) = a
+  Result (HKD table Identity) = table
+  Result (Row (HKD table)) = table
+  Result (table Identity) = table Identity
+  Result (HKD table (NullableF Identity)) = Maybe table
+  Result (a, b) = (Result a, Result b)
+  Result (a, b, c) = (Result a, Result b, Result c)
+  Result (a, b, c, d) = (Result a, Result b, Result c, Result d)
+  Result (a, b, c, d, e) = (Result a, Result b, Result c, Result d, Result e)
+  Result (a, b, c, d, e, f) = (Result a, Result b, Result c, Result d, Result e, Result f)
+  Result (a, b, c, d, e, f, g) = (Result a, Result b, Result c, Result d, Result e, Result f, Result g)
+  Result (a, b, c, d, e, f, g, h) = (Result a, Result b, Result c, Result d, Result e, Result f, Result g, Result h)
+
 class Resultable a where
-  type Result a
   result :: a -> Result a
 
 instance Resultable () where
-  type Result () = ()
   result = id
 
 instance Resultable (Identity a) where
-  type Result (Identity a) = a
   result = runIdentity
 
-instance Resultable (Singleton a Identity) where
-  type Result (Singleton a Identity) = a
+instance {-# OVERLAPPING #-} Resultable (Singleton a Identity) where
   result (Singleton (Identity a)) = a
 
-instance HKD.Construct Identity table => Resultable (HKD table Identity) where
-  type Result (HKD table Identity) = table
+instance {-# OVERLAPPING #-} HKD.Construct Identity table => Resultable (HKD table Identity) where
   result table = runIdentity $ HKD.construct table
 
-instance HKD.Construct Identity table => Resultable (Row (HKD table)) where
-  type Result (Row (HKD table)) = table
+instance {-# OVERLAPPING #-} HKD.Construct Identity table => Resultable (Row (HKD table)) where
   result (Row table) = runIdentity $ HKD.construct table
+
+instance (Result (table Identity) ~ table Identity) => Resultable (table Identity) where
+  result = id
 
 class FromNullable a where
   fromNullable :: Nullable a -> Maybe a
@@ -219,35 +233,27 @@ instance FromNullable (Maybe a) where
   fromNullable = Just
 
 instance (HKD.Construct Maybe table, HKD.ConstraintsB (HKD table), HKD.AllB FromNullable (HKD table)) => Resultable (HKD table (NullableF Identity)) where
-  type Result (HKD table (NullableF Identity)) = Maybe table
   result table =
     HKD.construct $
       Barbies.bmapC @FromNullable (\(NullableF (Identity x)) -> fromNullable x) table
 
 instance (Resultable a, Resultable b) => Resultable (a, b) where
-  type Result (a, b) = (Result a, Result b)
   result (a, b) = (result a, result b)
 
 instance (Resultable a, Resultable b, Resultable c) => Resultable (a, b, c) where
-  type Result (a, b, c) = (Result a, Result b, Result c)
   result (a, b, c) = (result a, result b, result c)
 
 instance (Resultable a, Resultable b, Resultable c, Resultable d) => Resultable (a, b, c, d) where
-  type Result (a, b, c, d) = (Result a, Result b, Result c, Result d)
   result (a, b, c, d) = (result a, result b, result c, result d)
 
 instance (Resultable a, Resultable b, Resultable c, Resultable d, Resultable e) => Resultable (a, b, c, d, e) where
-  type Result (a, b, c, d, e) = (Result a, Result b, Result c, Result d, Result e)
   result (a, b, c, d, e) = (result a, result b, result c, result d, result e)
 
 instance (Resultable a, Resultable b, Resultable c, Resultable d, Resultable e, Resultable f) => Resultable (a, b, c, d, e, f) where
-  type Result (a, b, c, d, e, f) = (Result a, Result b, Result c, Result d, Result e, Result f)
   result (a, b, c, d, e, f) = (result a, result b, result c, result d, result e, result f)
 
 instance (Resultable a, Resultable b, Resultable c, Resultable d, Resultable e, Resultable f, Resultable g) => Resultable (a, b, c, d, e, f, g) where
-  type Result (a, b, c, d, e, f, g) = (Result a, Result b, Result c, Result d, Result e, Result f, Result g)
   result (a, b, c, d, e, f, g) = (result a, result b, result c, result d, result e, result f, result g)
 
 instance (Resultable a, Resultable b, Resultable c, Resultable d, Resultable e, Resultable f, Resultable g, Resultable h) => Resultable (a, b, c, d, e, f, g, h) where
-  type Result (a, b, c, d, e, f, g, h) = (Result a, Result b, Result c, Result d, Result e, Result f, Result g, Result h)
   result (a, b, c, d, e, f, g, h) = (result a, result b, result c, result d, result e, result f, result g, result h)
