@@ -16,7 +16,7 @@ import Database.Woobat.Barbie
 import Database.Woobat.Expr.Types
 import Database.Woobat.Monad (MonadWoobat)
 import qualified Database.Woobat.Raw as Raw
-import Database.Woobat.Returning (Returning (..))
+import Database.Woobat.Returning
 import qualified Database.Woobat.Select as Select
 import Database.Woobat.Table (Table)
 import qualified Database.Woobat.Table as Table
@@ -71,3 +71,14 @@ update table query =
         <> from
         <> Raw.compileWheres (Builder.wheres builderState)
         <> returningClause
+
+update_ ::
+  forall table m.
+  (MonadWoobat m, Barbies.TraversableB table, Barbies.ApplicativeB table) =>
+  Table table ->
+  (table Expr -> Update (table Expr)) ->
+  m ()
+update_ table query =
+  update table $ \row -> do
+    row' <- query row
+    pure (row', ReturningNothing)
