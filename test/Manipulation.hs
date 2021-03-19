@@ -70,7 +70,7 @@ properties runWoobat =
               x2 <- s2
               pure $ HKD.build @(Expr.TableTwo _ _) x1 x2
             expected = Expr.TableTwo <$> expected1 <*> expected2
-        let table_ = hkdTable "select_after_insert"
+        let table_ = table "select_after_insert"
         result <- runWoobat $ do
           drop table_
           create table_

@@ -17,5 +17,5 @@ import Database.Woobat.Monad
 import Database.Woobat.Query
 import Database.Woobat.Returning
 import Database.Woobat.Select
-import Database.Woobat.Table (Table, hkdTable)
+import Database.Woobat.Table (Table, table)
 import Database.Woobat.Update

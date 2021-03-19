@@ -52,7 +52,7 @@ data Profile = Profile
   deriving (Generic)
 
 profile :: Table (HKD Profile)
-profile = hkdTable "profile"
+profile = table "profile"
 
 ppp :: Profile
 ppp =

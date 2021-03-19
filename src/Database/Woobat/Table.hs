@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
 
 module Database.Woobat.Table where
 
@@ -14,8 +15,8 @@ data Table table = Table
   , columnNames :: !(table (Const Text))
   }
 
-hkdTable :: (HKD.Label table, Barbies.FunctorB (HKD table)) => Text -> Table (HKD table)
-hkdTable name_ =
+table :: (HKD.Label table, Barbies.FunctorB (HKD table)) => Text -> Table (HKD table)
+table name_ =
   Table
     { name = name_
     , columnNames = HKD.bmap (\(Const s) -> Const $ fromString s) HKD.label
