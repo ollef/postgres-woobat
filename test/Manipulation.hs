@@ -74,7 +74,7 @@ properties runWoobat =
         result <- runWoobat $ do
           drop table_
           create table_
-          insert table_ (select_ select1 select2) noConflictHandling $ const ReturningNothing
+          insert table_ (select_ select1 select2) noConflictHandling returningNothing
           select $ from table_
         sort result Hedgehog.=== sort expected
     )
