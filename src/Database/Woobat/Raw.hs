@@ -243,7 +243,7 @@ execute sql onResult =
               throwM $ Monad.ExecutionError status message
         case status of
           LibPQ.EmptyQuery -> onError
-          LibPQ.CommandOk -> onError
+          LibPQ.CommandOk -> onResult result
           LibPQ.CopyOut -> onError
           LibPQ.CopyIn -> onError
           LibPQ.CopyBoth -> onError
