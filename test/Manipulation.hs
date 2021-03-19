@@ -96,4 +96,22 @@ properties runWoobat =
           insert table_ (select_ select1 select2) noConflictHandling Returning
         sort result Hedgehog.=== sort expected
     )
+  ,
+    ( "Insert returning row count"
+    , Hedgehog.property $ do
+        Select.SomeColumnSelectSpec select1 expected1 <- Hedgehog.forAll Select.genSomeColumnSelectSpec
+        Select.SomeColumnSelectSpec select2 expected2 <- Hedgehog.forAll Select.genSomeColumnSelectSpec
+        let select_ :: forall a b. Select (Expr a) -> Select (Expr b) -> Select (HKD (Expr.TableTwo a b) Expr)
+            select_ s1 s2 = do
+              x1 <- s1
+              x2 <- s2
+              pure $ HKD.build @(Expr.TableTwo _ _) x1 x2
+            expected = Expr.TableTwo <$> expected1 <*> expected2
+        let table_ = table "insert_returning_row_count"
+        result <- runWoobat $ do
+          drop table_
+          create table_
+          insert table_ (select_ select1 select2) noConflictHandling returningRowCount
+        result Hedgehog.=== length expected
+    )
   ]
