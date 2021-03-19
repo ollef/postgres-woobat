@@ -1,5 +1,4 @@
 {-# LANGUAGE FlexibleContexts #-}
-{-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
 
 module Database.Woobat.Table where
 
