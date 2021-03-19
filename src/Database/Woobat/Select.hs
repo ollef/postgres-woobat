@@ -9,10 +9,10 @@ module Database.Woobat.Select (
   Database.Woobat.Select.Builder.Select,
 ) where
 
+import qualified Barbies
 import Control.Exception.Safe
 import Control.Monad
 import Control.Monad.State
-import qualified Data.Barbie as Barbie
 import Data.Functor.Identity
 import qualified Data.Generic.HKD as HKD
 import qualified Database.PostgreSQL.LibPQ as LibPQ
@@ -77,7 +77,7 @@ parseRows _ resultsBarbie result = do
                   pure $ Just a
 
     barbieRow :: ToBarbie Expr a Identity <-
-      flip evalStateT 0 $ Barbie.btraverseC @DatabaseType go resultsBarbie
+      flip evalStateT 0 $ Barbies.btraverseC @DatabaseType go resultsBarbie
     pure $ Database.Woobat.Barbie.result $ fromBarbie @Expr @a barbieRow
 
 -- TODO move
@@ -86,7 +86,7 @@ compile s = do
   let (results, st) = run mempty s
       resultsBarbie :: ToBarbie Expr a Expr
       resultsBarbie = toBarbie results
-      sql = Raw.compileSelect (Barbie.bfoldMap (\(Expr e) -> [Raw.unExpr e $ usedNames st]) resultsBarbie) $ rawSelect st
+      sql = Raw.compileSelect (Barbies.bfoldMap (\(Expr e) -> [Raw.unExpr e $ usedNames st]) resultsBarbie) $ rawSelect st
   (sql, resultsBarbie)
 
 orderBy :: Expr a -> Raw.Order -> Select ()

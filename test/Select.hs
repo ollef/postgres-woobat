@@ -208,7 +208,7 @@ properties runWoobat =
           Hedgehog.evalM $
             runWoobat $
               select $ do
-                tab <- unnest (array $ row . record <$> xs)
+                Row tab <- unnest (array $ row . record <$> xs)
                 where_ $ tab ^. #field1 ==. tab ^. #field1 &&. tab ^. #field2 ==. tab ^. #field2
                 pure tab
         result Hedgehog.=== xs
@@ -367,6 +367,64 @@ genSomeSelectSpec =
         let sel' = pure $ exists sel
             expected' = [not $ null expected]
         pure $ SomeSelectSpec sel' expected'
+    ]
+
+data SomeColumnSelectSpec where
+  SomeColumnSelectSpec ::
+    ( a ~ Expr (Barbie.Result (Barbie.FromBarbie Expr a Identity))
+    , Show (Barbie.Result (Barbie.FromBarbie Expr a Identity))
+    , Eq (Barbie.Result (Barbie.FromBarbie Expr a Identity))
+    , Ord (Barbie.Result (Barbie.FromBarbie Expr a Identity))
+    , Barbie Expr a
+    , HKD.AllB DatabaseType (Barbie.ToBarbie Expr a)
+    , HKD.ConstraintsB (Barbie.ToBarbie Expr a)
+    , Barbie.Resultable (Barbie.FromBarbie Expr a Identity)
+    ) =>
+    Select a ->
+    [Barbie.Result (Barbie.FromBarbie Expr a Identity)] ->
+    SomeColumnSelectSpec
+
+instance Show SomeColumnSelectSpec where
+  show (SomeColumnSelectSpec sel result) = show (fst $ compile sel, result)
+
+genSomeColumnSelectSpec :: Hedgehog.Gen SomeColumnSelectSpec
+genSomeColumnSelectSpec =
+  Gen.recursive
+    Gen.choice
+    [ do
+        Expr.Some gen <- Expr.genSomeColumn
+        SelectSpec sel expected <- genSelectSpec gen
+        pure $ SomeColumnSelectSpec sel expected
+    ]
+    [ do
+        Expr.SomeNonMaybe gen <- Expr.genSomeNonMaybeColumn
+        SelectSpec sel1 expected1 <- genSelectSpec gen
+        SelectSpec sel2 expected2 <- genSelectSpec gen
+        Operation _ dbOp haskellOp <- genEqOperation
+        let sel = do
+              x <- sel1
+              y <- sel2
+              where_ $ dbOp x y
+              pure x
+            expected = do
+              x <- expected1
+              y <- expected2
+              guard $ haskellOp x y
+              pure x
+        pure $ SomeColumnSelectSpec sel expected
+    , do
+        Expr.SomeIntegral gen <- Expr.genSomeIntegral
+        SelectSpec sel expected <- genSelectSpec gen
+        x <- gen
+        Operation _ dbOp haskellOp <- genOrdOperation
+        let sel' = filter_ (dbOp $ value x) sel
+            expected' = filter (haskellOp x) expected
+        pure $ SomeColumnSelectSpec sel' expected'
+    , do
+        SomeColumnSelectSpec sel expected <- genSomeColumnSelectSpec
+        let sel' = pure $ exists sel
+            expected' = [not $ null expected]
+        pure $ SomeColumnSelectSpec sel' expected'
     ]
 
 genEqOperation :: Hedgehog.Gen Operation

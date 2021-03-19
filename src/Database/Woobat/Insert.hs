@@ -6,8 +6,8 @@
 
 module Database.Woobat.Insert where
 
+import qualified Barbies
 import Control.Lens (Lens', (^.))
-import qualified Data.Barbie as Barbie
 import Data.ByteString (ByteString)
 import Data.Functor.Const
 import Data.Generic.HKD (HKD)
@@ -40,7 +40,7 @@ insert table query (OnConflict onConflict_) returning =
     columnNames = HKD.bmap (\(Const name) -> Const $ Text.encodeUtf8 name) $ Table.columnNames table
     columnNameExprs = HKD.bmap (\(Const name) -> Expr $ Raw.codeExpr name) columnNames
     excluded_ = HKD.bmap (\(Const name) -> Expr $ "EXCLUDED." <> Raw.codeExpr name) columnNames
-    columnNamesList = Barbie.bfoldMap (\(Const name) -> [name]) columnNames
+    columnNamesList = Barbies.bfoldMap (\(Const name) -> [name]) columnNames
     usedNames = HashMap.fromList $ (Text.encodeUtf8 $ Table.name table, 1) : [(name, 1) | name <- columnNamesList]
     (compiledQuery, _) = Select.compile $ do
       putUsedNames usedNames
@@ -57,7 +57,7 @@ insert table query (OnConflict onConflict_) returning =
         ("", const $ pure ())
       Returning results -> do
         let resultsBarbie = toBarbie results
-            resultsExprs = Barbie.bfoldMap (\(Expr e) -> [Raw.unExpr e usedNames]) resultsBarbie
+            resultsExprs = Barbies.bfoldMap (\(Expr e) -> [Raw.unExpr e usedNames]) resultsBarbie
         (" RETURNING " <> Raw.separateBy ", " resultsExprs, Select.parseRows (Just results) resultsBarbie)
       ReturningRowCount ->
         ("", fmap (\(LibPQ.Row r) -> fromIntegral r) <$> LibPQ.ntuples)
@@ -105,12 +105,12 @@ data Assignment table where
   (:=) :: (forall f. Lens' (HKD table f) (f a)) -> Expr a -> Assignment table
 
 setAll ::
-  (Barbie.TraversableB (HKD table), Barbie.ProductB (HKD table)) =>
+  (Barbies.TraversableB (HKD table), HKD.ApplicativeB (HKD table)) =>
   HKD table Expr ->
   ConflictAction table
 setAll assignments = ConflictAction $ \table ->
-  ( Barbie.bfoldMap (\(Const x) -> [x]) $
-      Barbie.bzipWith
+  ( Barbies.bfoldMap (\(Const x) -> [x]) $
+      Barbies.bzipWith
         (\(Const f) (Expr e) -> Const (Text.encodeUtf8 f, e))
         (Table.columnNames table)
         assignments

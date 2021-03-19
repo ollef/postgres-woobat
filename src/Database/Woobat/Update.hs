@@ -5,8 +5,8 @@
 
 module Database.Woobat.Update where
 
+import qualified Barbies
 import qualified ByteString.StrictBuilder as Builder
-import qualified Data.Barbie as Barbie
 import Data.Functor.Const
 import Data.Generic.HKD (HKD)
 import qualified Data.Generic.HKD as HKD
@@ -27,7 +27,7 @@ import qualified Database.Woobat.Update.Builder as Builder
 
 update ::
   forall table a m.
-  (MonadWoobat m, HKD.TraversableB (HKD table), Barbie.ProductB (HKD table)) =>
+  (MonadWoobat m, HKD.TraversableB (HKD table), Barbies.ApplicativeB (HKD table)) =>
   Table table ->
   (HKD table Expr -> Update (HKD table Expr, Returning a)) ->
   m a
@@ -36,12 +36,12 @@ update table query =
   where
     columnNames = HKD.bmap (\(Const name) -> Const $ Text.encodeUtf8 name) $ Table.columnNames table
     columnNameExprs = HKD.bmap (\(Const name) -> Expr $ Raw.codeExpr (Text.encodeUtf8 $ Table.name table) <> "." <> Raw.codeExpr name) columnNames
-    columnNamesList = Barbie.bfoldMap (\(Const name) -> [name]) columnNames
+    columnNamesList = Barbies.bfoldMap (\(Const name) -> [name]) columnNames
     usedNames = HashMap.fromList $ (Text.encodeUtf8 $ Table.name table, 1) : [(name, 1) | name <- columnNamesList]
     ((updatedRow, returning), builderState) = Builder.run usedNames $ query columnNameExprs
     setters =
-      Barbie.bfoldMap (\(Const xs) -> xs) $
-        Barbie.bzipWith
+      Barbies.bfoldMap (\(Const xs) -> xs) $
+        Barbies.bzipWith
           ( \(Const columnName) (Expr updated) ->
               Const $ do
                 let (Raw.SQL updated') = Raw.unExpr updated $ Builder.usedNames builderState
@@ -59,7 +59,7 @@ update table query =
         ("", const $ pure ())
       Returning results -> do
         let resultsBarbie = toBarbie results
-            resultsExprs = Barbie.bfoldMap (\(Expr e) -> [Raw.unExpr e usedNames]) resultsBarbie
+            resultsExprs = Barbies.bfoldMap (\(Expr e) -> [Raw.unExpr e usedNames]) resultsBarbie
         (" RETURNING " <> Raw.separateBy ", " resultsExprs, Select.parseRows (Just results) resultsBarbie)
       ReturningRowCount ->
         ("", fmap (\(LibPQ.Row r) -> fromIntegral r) <$> LibPQ.ntuples)

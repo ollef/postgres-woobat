@@ -2,11 +2,10 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
@@ -19,12 +18,12 @@ module Database.Woobat.Expr (
   module Database.Woobat.Expr,
 ) where
 
+import qualified Barbies
+import qualified Barbies.Constraints as Barbies
 import qualified ByteString.StrictBuilder as Builder
 import Control.Monad
 import Control.Monad.State
 import qualified Data.Aeson as Aeson
-import qualified Data.Barbie as Barbie
-import qualified Data.Barbie.Constraints as Barbie
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as Lazy
 import Data.Coerce
@@ -114,25 +113,25 @@ instance DatabaseEq (Expr a) where
 instance
   ( HKD.ConstraintsB (HKD table)
   , HKD.TraversableB (HKD table)
-  , Barbie.ProductB (HKD table)
-  , Barbie.AllBF DatabaseEq Expr (HKD table)
+  , HKD.ApplicativeB (HKD table)
+  , Barbies.AllBF DatabaseEq Expr (HKD table)
   ) =>
   DatabaseEq (HKD table Expr)
   where
   table1 ==. table2 =
     foldr_ (&&.) true $
-      Barbie.bfoldMap (\(Const e) -> [e]) $
-        Barbie.bmapC @(Barbie.ClassF DatabaseEq Expr) (\(Pair x y) -> Const $ x ==. y) $
-          Barbie.bzip table1 table2
+      Barbies.bfoldMap (\(Const e) -> [e]) $
+        Barbies.bmapC @(Barbies.ClassF DatabaseEq Expr) (\(Pair x y) -> Const $ x ==. y) $
+          Barbies.bzip table1 table2
     where
       foldr_ _ b [] = b
       foldr_ f _ as = foldr1 f as
 
   table1 /=. table2 =
     foldr_ (||.) false $
-      Barbie.bfoldMap (\(Const e) -> [e]) $
-        Barbie.bmapC @(Barbie.ClassF DatabaseEq Expr) (\(Pair x y) -> Const $ x /=. y) $
-          Barbie.bzip table1 table2
+      Barbies.bfoldMap (\(Const e) -> [e]) $
+        Barbies.bmapC @(Barbies.ClassF DatabaseEq Expr) (\(Pair x y) -> Const $ x /=. y) $
+          Barbies.bzip table1 table2
     where
       foldr_ _ b [] = b
       foldr_ f _ as = foldr1 f as
@@ -336,29 +335,10 @@ record ::
   row ->
   HKD row Expr
 record =
-  Barbie.bmapC @DatabaseType (\(Identity a) -> value a) . HKD.deconstruct
-
-type Row row = RowF row Identity
-newtype RowF row (f :: * -> *) = Row (row f)
-
-instance HKD.FunctorB row => HKD.FunctorB (RowF row) where
-  bmap f (Row row_) = Row $ HKD.bmap f row_
-
-instance HKD.TraversableB row => HKD.TraversableB (RowF row) where
-  btraverse f (Row row_) = Row <$> HKD.btraverse f row_
-
-instance HKD.TraversableB row => Barbie f (RowF row f) where
-  type ToBarbie f (RowF row f) = row
-  type FromBarbie f (RowF row f) g = row g
-  toBarbie (Row x) = x
-  fromBarbie = id
+  Barbies.bmapC @DatabaseType (\(Identity a) -> value a) . HKD.deconstruct
 
 pureRow :: HKD.Construct Identity row => row -> Row (HKD row)
 pureRow = Row . HKD.deconstruct
-
-deriving instance Eq (row Identity) => Eq (Row row)
-deriving instance Ord (row Identity) => Ord (Row row)
-deriving instance Show (row Identity) => Show (Row row)
 
 row :: forall row. Barbie Expr row => row -> Expr (Row (ToBarbie Expr row))
 row r = do
@@ -375,7 +355,7 @@ fromJSONBRow ::
   Expr (JSONB (Row row)) ->
   row Expr
 fromJSONBRow (Expr json) =
-  flip evalState 1 $ Barbie.btraverseC @FromJSON go mempty
+  flip evalState 1 $ Barbies.btraverseC @FromJSON go mempty
   where
     go :: forall x. FromJSON x => Const () x -> State Int (Expr x)
     go (Const ()) = do
@@ -393,13 +373,13 @@ instance
   where
   typeName = "record"
   value (Row r) = do
-    let values = Barbie.bmapC @DatabaseType (\(Identity field) -> value field) r
+    let values = Barbies.bmapC @DatabaseType (\(Identity field) -> value field) r
     hkdRow values
   decoder =
     Decoder $
       Decoding.composite $
         Row
-          <$> Barbie.btraverseC
+          <$> Barbies.btraverseC
             @DatabaseType
             ( \(Const ()) -> case decoder of
                 Decoder d -> Identity <$> Decoding.valueComposite d
@@ -725,4 +705,4 @@ class Impossible where
 
 hkdRow :: HKD.TraversableB row => row Expr -> Expr (Row row)
 hkdRow r = do
-  Expr $ "ROW(" <> Raw.separateBy ", " (Barbie.bfoldMap (\(Expr e) -> [e]) r) <> ")"
+  Expr $ "ROW(" <> Raw.separateBy ", " (Barbies.bfoldMap (\(Expr e) -> [e]) r) <> ")"

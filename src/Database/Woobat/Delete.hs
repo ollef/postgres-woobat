@@ -5,7 +5,7 @@
 
 module Database.Woobat.Delete where
 
-import qualified Data.Barbie as Barbie
+import qualified Barbies
 import Data.Functor.Const
 import Data.Generic.HKD (HKD)
 import qualified Data.Generic.HKD as HKD
@@ -34,7 +34,7 @@ delete table query =
   where
     columnNames = HKD.bmap (\(Const name) -> Const $ Text.encodeUtf8 name) $ Table.columnNames table
     columnNameExprs = HKD.bmap (\(Const name) -> Expr $ Raw.codeExpr name) columnNames
-    columnNamesList = Barbie.bfoldMap (\(Const name) -> [name]) columnNames
+    columnNamesList = Barbies.bfoldMap (\(Const name) -> [name]) columnNames
     usedNames = HashMap.fromList $ (Text.encodeUtf8 $ Table.name table, 1) : [(name, 1) | name <- columnNamesList]
     (returning, builderState) = Builder.run usedNames $ query columnNameExprs
     tableName = Text.encodeUtf8 $ Table.name table
@@ -45,7 +45,7 @@ delete table query =
         ("", const $ pure ())
       Returning results -> do
         let resultsBarbie = toBarbie results
-            resultsExprs = Barbie.bfoldMap (\(Expr e) -> [Raw.unExpr e usedNames]) resultsBarbie
+            resultsExprs = Barbies.bfoldMap (\(Expr e) -> [Raw.unExpr e usedNames]) resultsBarbie
         (" RETURNING " <> Raw.separateBy ", " resultsExprs, Select.parseRows (Just results) resultsBarbie)
       ReturningRowCount ->
         ("", fmap (\(LibPQ.Row r) -> fromIntegral r) <$> LibPQ.ntuples)

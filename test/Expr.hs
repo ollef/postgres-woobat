@@ -314,7 +314,7 @@ instance Show SomeNonArray where show (SomeNonArray gen) = showTypeOfGen gen
 instance Show SomeNonMaybe where show (SomeNonMaybe gen) = showTypeOfGen gen
 
 showTypeOfGen :: forall a. Typeable a => Hedgehog.Gen a -> String
-showTypeOfGen _ = show $ typeOf (undefined :: a)
+showTypeOfGen _ = show $ typeRep (Proxy :: Proxy a)
 
 data TableTwo a b = TableTwo
   { field1 :: a
@@ -336,9 +336,28 @@ genSome =
         pure $ Some x
     ]
 
+genSomeColumn :: Hedgehog.MonadGen m => m Some
+genSomeColumn =
+  Gen.choice
+    [ do
+        SomeNonNested x <- Gen.choice genSomeNonNestedColumn
+        pure $ Some x
+    , do
+        SomeNonMaybe x <- genSomeNonMaybeColumn
+        pure $ Some $ Gen.maybe x
+    , do
+        SomeNonMaybe x <- genSomeArrayColumn
+        pure $ Some x
+    ]
+
 genSomeArray :: Hedgehog.MonadGen m => m SomeNonMaybe
 genSomeArray = do
   SomeNonArray x <- genSomeNonArray
+  pure $ SomeNonMaybe $ Gen.list (Range.linearFrom 0 0 10) x
+
+genSomeArrayColumn :: Hedgehog.MonadGen m => m SomeNonMaybe
+genSomeArrayColumn = do
+  SomeNonArray x <- genSomeNonArrayColumn
   pure $ SomeNonMaybe $ Gen.list (Range.linearFrom 0 0 10) x
 
 genSomeNonMaybe :: Hedgehog.MonadGen m => m SomeNonMaybe
@@ -350,31 +369,30 @@ genSomeNonMaybe =
     , genSomeArray
     ]
 
+genSomeNonMaybeColumn :: Hedgehog.MonadGen m => m SomeNonMaybe
+genSomeNonMaybeColumn =
+  Gen.choice
+    [ do
+        SomeNonNested x <- Gen.choice genSomeNonNestedColumn
+        pure $ SomeNonMaybe x
+    , genSomeArrayColumn
+    ]
+
 genSomeNonArray :: Hedgehog.MonadGen m => m SomeNonArray
 genSomeNonArray = do
   SomeNonNested x <- genSomeNonNested
+  Gen.element [SomeNonArray x, SomeNonArray $ Gen.maybe x]
+
+genSomeNonArrayColumn :: Hedgehog.MonadGen m => m SomeNonArray
+genSomeNonArrayColumn = do
+  SomeNonNested x <- Gen.choice genSomeNonNestedColumn
   Gen.element [SomeNonArray x, SomeNonArray $ Gen.maybe x]
 
 genSomeNonNested :: Hedgehog.MonadGen m => m SomeNonNested
 genSomeNonNested =
   Gen.recursive
     Gen.choice
-    [ pure $ SomeNonNested Gen.bool
-    , pure $ SomeNonNested unicode
-    , pure $ SomeNonNested $ Gen.text (Range.linearFrom 0 0 1000) unicode
-    , pure $ SomeNonNested $ Text.Lazy.fromStrict <$> Gen.text (Range.linearFrom 0 0 1000) unicode
-    , pure $ SomeNonNested $ Gen.bytes (Range.linearFrom 0 0 1000)
-    , pure $ SomeNonNested $ ByteString.Lazy.fromStrict <$> Gen.bytes (Range.linearFrom 0 0 1000)
-    , pure $ SomeNonNested genDay
-    , pure $ SomeNonNested genTimeOfDay
-    , pure $ SomeNonNested $ (,) <$> genTimeOfDay <*> genTimeZone
-    , pure $ SomeNonNested genLocalTime
-    , pure $ SomeNonNested genUTCTime
-    , pure $ SomeNonNested genDiffTime
-    , do
-        SomeNum x <- genSomeNum
-        pure $ SomeNonNested x
-    ]
+    genSomeNonNestedColumn
     [ do
         Some gena <- genSome
         Some genb <- genSome
@@ -384,6 +402,25 @@ genSomeNonNested =
             b <- genb
             pure $ pureRow TableTwo {field1 = a, field2 = b}
     ]
+
+genSomeNonNestedColumn :: Hedgehog.MonadGen m => [m SomeNonNested]
+genSomeNonNestedColumn =
+  [ pure $ SomeNonNested Gen.bool
+  , pure $ SomeNonNested unicode
+  , pure $ SomeNonNested $ Gen.text (Range.linearFrom 0 0 1000) unicode
+  , pure $ SomeNonNested $ Text.Lazy.fromStrict <$> Gen.text (Range.linearFrom 0 0 1000) unicode
+  , pure $ SomeNonNested $ Gen.bytes (Range.linearFrom 0 0 1000)
+  , pure $ SomeNonNested $ ByteString.Lazy.fromStrict <$> Gen.bytes (Range.linearFrom 0 0 1000)
+  , pure $ SomeNonNested genDay
+  , pure $ SomeNonNested genTimeOfDay
+  , pure $ SomeNonNested $ (,) <$> genTimeOfDay <*> genTimeZone
+  , pure $ SomeNonNested genLocalTime
+  , pure $ SomeNonNested genUTCTime
+  , pure $ SomeNonNested genDiffTime
+  , do
+      SomeNum x <- genSomeNum
+      pure $ SomeNonNested x
+  ]
 
 genSomeFractional :: Hedgehog.MonadGen m => m SomeFractional
 genSomeFractional =

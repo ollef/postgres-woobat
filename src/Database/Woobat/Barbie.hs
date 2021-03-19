@@ -15,18 +15,19 @@
 
 module Database.Woobat.Barbie where
 
-import qualified Data.Barbie as Barbie
-import qualified Data.Barbie.Constraints as Barbie
+import qualified Barbies
+import qualified Barbies.Constraints as Barbies
 import Data.Functor.Identity
 import qualified Data.Functor.Product as Functor
 import Data.Generic.HKD (HKD)
 import qualified Data.Generic.HKD as HKD
+import Data.Kind (Type)
 import Database.Woobat.Expr.Types
 import GHC.Generics
 
 -------------------------------------------------------------------------------
 
-newtype Singleton (a :: *) f = Singleton (f a)
+newtype Singleton (a :: Type) f = Singleton (f a)
   deriving (Eq, Ord, Show, Read, Generic, Semigroup, Monoid)
 
 instance HKD.FunctorB (Singleton a)
@@ -65,15 +66,15 @@ class c (Nullable a) => ConstrainNullable c a
 instance c (Nullable a) => ConstrainNullable c a
 
 instance HKD.ConstraintsB hkd => HKD.ConstraintsB (NullableHKD hkd) where
-  type AllB c (NullableHKD hkd) = Barbie.AllB (ConstrainNullable c) hkd
+  type AllB c (NullableHKD hkd) = Barbies.AllB (ConstrainNullable c) hkd
   baddDicts ::
     forall c f.
     HKD.AllB c (NullableHKD hkd) =>
     NullableHKD hkd f ->
-    NullableHKD hkd (Functor.Product (Barbie.Dict c) f)
+    NullableHKD hkd (Functor.Product (Barbies.Dict c) f)
   baddDicts (NullableHKD hkd) =
     NullableHKD $
-      HKD.bmap (\(Functor.Pair Barbie.Dict (NullableF a)) -> NullableF (Functor.Pair Barbie.Dict a)) $
+      HKD.bmap (\(Functor.Pair Barbies.Dict (NullableF a)) -> NullableF (Functor.Pair Barbies.Dict a)) $
         HKD.baddDicts @_ @_ @(ConstrainNullable c) hkd
 
 instance HKD.FunctorB hkd => HKD.FunctorB (NullableHKD hkd) where
@@ -86,23 +87,17 @@ instance HKD.TraversableB hkd => HKD.TraversableB (NullableHKD hkd) where
 
 -------------------------------------------------------------------------------
 
-class HKD.TraversableB (ToBarbie f t) => Barbie (f :: * -> *) t where
-  type ToBarbie f t :: (* -> *) -> *
-  type FromBarbie f t (g :: * -> *)
+class HKD.TraversableB (ToBarbie f t) => Barbie (f :: Type -> Type) t where
+  type ToBarbie f t :: (Type -> Type) -> Type
+  type FromBarbie f t (g :: Type -> Type)
   toBarbie :: t -> ToBarbie f t f
   fromBarbie :: ToBarbie f t g -> FromBarbie f t g
 
 instance Barbie f () where
-  type ToBarbie f () = Barbie.Unit
+  type ToBarbie f () = Barbies.Unit
   type FromBarbie f () _ = ()
-  toBarbie () = Barbie.Unit
-  fromBarbie Barbie.Unit = ()
-
-instance Barbie Expr (Singleton a Expr) where
-  type ToBarbie Expr (Singleton a Expr) = Singleton a
-  type FromBarbie Expr (Singleton a Expr) g = g a
-  toBarbie = id
-  fromBarbie (Singleton x) = x
+  toBarbie () = Barbies.Unit
+  fromBarbie Barbies.Unit = ()
 
 instance Barbie Expr (Expr a) where
   type ToBarbie Expr (Expr a) = Singleton a
@@ -122,15 +117,15 @@ instance Barbie AggregateExpr (AggregateExpr a) where
   toBarbie = Singleton
   fromBarbie (Singleton x) = x
 
-instance (HKD.TraversableB (HKD table)) => Barbie Expr (HKD table Expr) where
-  type ToBarbie Expr (HKD table Expr) = HKD table
-  type FromBarbie Expr (HKD table Expr) g = HKD table g
+instance (HKD.TraversableB hkd) => Barbie Expr (hkd Expr) where
+  type ToBarbie Expr (hkd Expr) = hkd
+  type FromBarbie Expr (hkd Expr) g = hkd g
   toBarbie = id
   fromBarbie = id
 
-instance HKD.TraversableB (HKD table) => Barbie f (HKD table (NullableF f)) where
-  type ToBarbie f (HKD table (NullableF f)) = NullableHKD (HKD table)
-  type FromBarbie f (HKD table (NullableF f)) g = HKD table (NullableF g)
+instance HKD.TraversableB hkd => Barbie f (hkd (NullableF f)) where
+  type ToBarbie f (hkd (NullableF f)) = NullableHKD hkd
+  type FromBarbie f (hkd (NullableF f)) g = hkd (NullableF g)
   toBarbie = NullableHKD
   fromBarbie (NullableHKD x) = x
 
@@ -202,9 +197,17 @@ instance Resultable (Identity a) where
   type Result (Identity a) = a
   result = runIdentity
 
+instance Resultable (Singleton a Identity) where
+  type Result (Singleton a Identity) = a
+  result (Singleton (Identity a)) = a
+
 instance HKD.Construct Identity table => Resultable (HKD table Identity) where
   type Result (HKD table Identity) = table
   result table = runIdentity $ HKD.construct table
+
+instance HKD.Construct Identity table => Resultable (Row (HKD table)) where
+  type Result (Row (HKD table)) = table
+  result (Row table) = runIdentity $ HKD.construct table
 
 class FromNullable a where
   fromNullable :: Nullable a -> Maybe a
@@ -219,7 +222,7 @@ instance (HKD.Construct Maybe table, HKD.ConstraintsB (HKD table), HKD.AllB From
   type Result (HKD table (NullableF Identity)) = Maybe table
   result table =
     HKD.construct $
-      Barbie.bmapC @FromNullable (\(NullableF (Identity x)) -> fromNullable x) table
+      Barbies.bmapC @FromNullable (\(NullableF (Identity x)) -> fromNullable x) table
 
 instance (Resultable a, Resultable b) => Resultable (a, b) where
   type Result (a, b) = (Result a, Result b)
