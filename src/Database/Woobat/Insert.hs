@@ -18,7 +18,7 @@ import Database.Woobat.Expr
 import Database.Woobat.Monad (MonadWoobat)
 import Database.Woobat.Query.Monad
 import qualified Database.Woobat.Raw as Raw
-import Database.Woobat.Returning (Returning (..))
+import Database.Woobat.Returning
 import Database.Woobat.Select (Select)
 import qualified Database.Woobat.Select as Select
 import Database.Woobat.Table (Table)
@@ -66,6 +66,16 @@ insert table query (OnConflict onConflict_) returning =
         <> ")"
         <> onConflictClause
         <> returningClause
+
+insert_ ::
+  forall table m.
+  (MonadWoobat m, Barbies.TraversableB table) =>
+  Table table ->
+  Select (table Expr) ->
+  OnConflict table ->
+  m ()
+insert_ table query onConflict_ =
+  insert table query onConflict_ returningNothing
 
 -- | The default value for a column.
 -- Warning: This is only valid in insertions, but this is not checked.
