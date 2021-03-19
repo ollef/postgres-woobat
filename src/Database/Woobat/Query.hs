@@ -177,7 +177,7 @@ expressions rows = do
           <> ")"
       )
   let resultBarbie :: ToBarbie Expr a Expr
-      resultBarbie = Barbies.bmap (\(Const alias) -> Expr $ Raw.codeExpr alias) aliasesBarbie
+      resultBarbie = Barbies.bmap (\(Const alias) -> Expr $ Raw.Expr (const rowAlias) <> "." <> Raw.codeExpr alias) aliasesBarbie
   pure $ fromBarbie @Expr @a resultBarbie
 
 -- | @UNNEST@
@@ -241,10 +241,10 @@ instance
   type UnnestedBarbie (Row row) = RowF row
   unnested = do
     returnRow <- Barbies.btraverseC @UnnestableRowElement go (mempty :: row (Const ()))
+    alias <- Raw.code <$> freshName "unnested"
     usedNames_ <- getUsedNames
     let returnRowList = Barbies.bfoldMap (\(Const (colAlias, typeName_)) -> [colAlias <> " " <> Raw.unExpr typeName_ usedNames_]) returnRow
-        result = Barbies.bmap (\(Const (colAlias, _)) -> Expr $ Raw.Expr $ const colAlias) returnRow
-    alias <- Raw.code <$> freshName "unnested"
+        result = Barbies.bmap (\(Const (colAlias, _)) -> Expr $ Raw.Expr $ const $ alias <> "." <> colAlias) returnRow
     pure (alias <> "(" <> Raw.separateBy ", " returnRowList <> ")", Row result)
     where
       go :: forall a query. (UnnestableRowElement a, MonadQuery query) => Const () a -> query (Const (Raw.SQL, Raw.Expr) a)
