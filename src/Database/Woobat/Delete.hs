@@ -6,8 +6,11 @@
 module Database.Woobat.Delete where
 
 import qualified Barbies
+import Control.Exception.Safe
+import Data.ByteString.Char8 as ByteString
 import Data.Functor.Const
 import qualified Data.HashMap.Lazy as HashMap
+import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Database.PostgreSQL.LibPQ as LibPQ
 import Database.Woobat.Barbie
@@ -15,6 +18,7 @@ import Database.Woobat.Delete.Builder (Delete)
 import qualified Database.Woobat.Delete.Builder as Builder
 import Database.Woobat.Expr
 import Database.Woobat.Monad (MonadWoobat)
+import qualified Database.Woobat.Monad as Monad
 import qualified Database.Woobat.Raw as Raw
 import Database.Woobat.Returning
 import qualified Database.Woobat.Select as Select
@@ -34,11 +38,11 @@ delete table query =
     columnNameExprs = Barbies.bmap (\(Const name) -> Expr $ Raw.codeExpr name) columnNames
     columnNamesList = Barbies.bfoldMap (\(Const name) -> [name]) columnNames
     usedNames = HashMap.fromList $ (Text.encodeUtf8 $ Table.name table, 1) : [(name, 1) | name <- columnNamesList]
-    (returning, builderState) = Builder.run usedNames $ query columnNameExprs
+    (returning_, builderState) = Builder.run usedNames $ query columnNameExprs
     tableName = Text.encodeUtf8 $ Table.name table
     returningClause :: Raw.SQL
     getResults :: LibPQ.Result -> IO a
-    (returningClause, getResults) = case returning of
+    (returningClause, getResults) = case returning_ of
       ReturningNothing ->
         ("", const $ pure ())
       Returning results -> do
@@ -46,7 +50,15 @@ delete table query =
             resultsExprs = Barbies.bfoldMap (\(Expr e) -> [Raw.unExpr e usedNames]) resultsBarbie
         (" RETURNING " <> Raw.separateBy ", " resultsExprs, Select.parseRows (Just results) resultsBarbie)
       ReturningRowCount ->
-        ("", fmap (\(LibPQ.Row r) -> fromIntegral r) <$> LibPQ.ntuples)
+        ( ""
+        , \result_ -> do
+            maybeRowCountString <- LibPQ.cmdTuples result_
+            case maybeRowCountString >>= ByteString.readInt of
+              Just (rowCount, "") ->
+                pure rowCount
+              _ ->
+                throwM $ Monad.DecodingError 0 0 $ "Failed to decode row count: " <> Text.pack (show maybeRowCountString)
+        )
     using =
       case Raw.unitView $ Builder.rawFrom builderState of
         Right () -> ""

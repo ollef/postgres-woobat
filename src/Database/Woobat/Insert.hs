@@ -7,15 +7,19 @@
 module Database.Woobat.Insert where
 
 import qualified Barbies
+import Control.Exception.Safe
 import Control.Lens (Lens', (^.))
 import Data.ByteString (ByteString)
+import qualified Data.ByteString.Char8 as ByteString
 import Data.Functor.Const
 import qualified Data.HashMap.Lazy as HashMap
+import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Database.PostgreSQL.LibPQ as LibPQ
 import Database.Woobat.Barbie
 import Database.Woobat.Expr
 import Database.Woobat.Monad (MonadWoobat)
+import qualified Database.Woobat.Monad as Monad
 import Database.Woobat.Query.Monad
 import qualified Database.Woobat.Raw as Raw
 import Database.Woobat.Returning
@@ -32,7 +36,7 @@ insert ::
   OnConflict table ->
   (table Expr -> Returning a) ->
   m a
-insert table query (OnConflict onConflict_) returning =
+insert table query (OnConflict onConflict_) returning_ =
   Raw.execute statement getResults
   where
     columnNames = Barbies.bmap (\(Const name) -> Const $ Text.encodeUtf8 name) $ Table.columnNames table
@@ -50,7 +54,7 @@ insert table query (OnConflict onConflict_) returning =
         usedNames
     returningClause :: Raw.SQL
     getResults :: LibPQ.Result -> IO a
-    (returningClause, getResults) = case returning columnNameExprs of
+    (returningClause, getResults) = case returning_ columnNameExprs of
       ReturningNothing ->
         ("", const $ pure ())
       Returning results -> do
@@ -58,7 +62,15 @@ insert table query (OnConflict onConflict_) returning =
             resultsExprs = Barbies.bfoldMap (\(Expr e) -> [Raw.unExpr e usedNames]) resultsBarbie
         (" RETURNING " <> Raw.separateBy ", " resultsExprs, Select.parseRows (Just results) resultsBarbie)
       ReturningRowCount ->
-        ("", fmap (\(LibPQ.Row r) -> fromIntegral r) <$> LibPQ.ntuples)
+        ( ""
+        , \result_ -> do
+            maybeRowCountString <- LibPQ.cmdTuples result_
+            case maybeRowCountString >>= ByteString.readInt of
+              Just (rowCount, "") ->
+                pure rowCount
+              _ ->
+                throwM $ Monad.DecodingError 0 0 $ "Failed to decode row count: " <> Text.pack (show maybeRowCountString)
+        )
     statement =
       "INSERT INTO " <> Raw.code tableName <> " (" <> Raw.separateBy ", " (Raw.code <$> columnNamesList) <> ")"
         <> " ("
