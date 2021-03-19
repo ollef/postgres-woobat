@@ -16,7 +16,7 @@ import qualified Database.Woobat.Delete.Builder as Builder
 import Database.Woobat.Expr
 import Database.Woobat.Monad (MonadWoobat)
 import qualified Database.Woobat.Raw as Raw
-import Database.Woobat.Returning (Returning (..))
+import Database.Woobat.Returning
 import qualified Database.Woobat.Select as Select
 import Database.Woobat.Table (Table)
 import qualified Database.Woobat.Table as Table
@@ -56,3 +56,11 @@ delete table query =
         <> using
         <> Raw.compileWheres (Builder.wheres builderState)
         <> returningClause
+
+delete_ ::
+  forall table m.
+  (MonadWoobat m, Barbies.TraversableB table) =>
+  Table table ->
+  (table Expr -> Delete ()) ->
+  m ()
+delete_ table query = delete table $ fmap returningNothing <$> query
