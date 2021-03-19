@@ -8,7 +8,6 @@ module Database.Woobat.Update where
 import qualified Barbies
 import qualified ByteString.StrictBuilder as Builder
 import Data.Functor.Const
-import Data.Generic.HKD (HKD)
 import qualified Data.Generic.HKD as HKD
 import qualified Data.HashMap.Lazy as HashMap
 import qualified Data.Sequence as Seq
@@ -27,9 +26,9 @@ import qualified Database.Woobat.Update.Builder as Builder
 
 update ::
   forall table a m.
-  (MonadWoobat m, HKD.TraversableB (HKD table), Barbies.ApplicativeB (HKD table)) =>
+  (MonadWoobat m, HKD.TraversableB table, Barbies.ApplicativeB table) =>
   Table table ->
-  (HKD table Expr -> Update (HKD table Expr, Returning a)) ->
+  (table Expr -> Update (table Expr, Returning a)) ->
   m a
 update table query =
   Raw.execute statement getResults

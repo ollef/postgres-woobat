@@ -10,7 +10,6 @@ import qualified Barbies
 import Control.Lens (Lens', (^.))
 import Data.ByteString (ByteString)
 import Data.Functor.Const
-import Data.Generic.HKD (HKD)
 import qualified Data.Generic.HKD as HKD
 import qualified Data.HashMap.Lazy as HashMap
 import qualified Data.Text.Encoding as Text
@@ -28,11 +27,11 @@ import qualified Database.Woobat.Table as Table
 
 insert ::
   forall table a m.
-  (MonadWoobat m, HKD.TraversableB (HKD table)) =>
+  (MonadWoobat m, HKD.TraversableB table) =>
   Table table ->
-  Select (HKD table Expr) ->
+  Select (table Expr) ->
   OnConflict table ->
-  (HKD table Expr -> Returning a) ->
+  (table Expr -> Returning a) ->
   m a
 insert table query (OnConflict onConflict_) returning =
   Raw.execute statement getResults
@@ -73,9 +72,9 @@ newtype OnConflict table = OnConflict (Table table -> ConflictContext table -> R
 
 data ConflictContext table = ConflictContext
   { -- | The existing data in the table row
-    existing :: HKD table Expr
+    existing :: table Expr
   , -- | The data that caused a conflict during insertion, i.e. the new data
-    excluded :: HKD table Expr
+    excluded :: table Expr
   }
 
 noConflictHandling :: OnConflict table
@@ -97,16 +96,16 @@ onConflict fields action =
       maybeWhere
 
 data ConflictingField table where
-  ConflictingField :: (forall f. Lens' (HKD table f) (f a)) -> ConflictingField table
+  ConflictingField :: (forall f. Lens' (table f) (f a)) -> ConflictingField table
 
 newtype ConflictAction table = ConflictAction (Table table -> ([(ByteString, Raw.Expr)], Maybe Raw.Expr))
 
 data Assignment table where
-  (:=) :: (forall f. Lens' (HKD table f) (f a)) -> Expr a -> Assignment table
+  (:=) :: (forall f. Lens' (table f) (f a)) -> Expr a -> Assignment table
 
 setAll ::
-  (Barbies.TraversableB (HKD table), HKD.ApplicativeB (HKD table)) =>
-  HKD table Expr ->
+  (Barbies.TraversableB table, HKD.ApplicativeB table) =>
+  table Expr ->
   ConflictAction table
 setAll assignments = ConflictAction $ \table ->
   ( Barbies.bfoldMap (\(Const x) -> [x]) $

@@ -7,7 +7,6 @@ module Database.Woobat.Delete where
 
 import qualified Barbies
 import Data.Functor.Const
-import Data.Generic.HKD (HKD)
 import qualified Data.Generic.HKD as HKD
 import qualified Data.HashMap.Lazy as HashMap
 import qualified Data.Text.Encoding as Text
@@ -25,9 +24,9 @@ import qualified Database.Woobat.Table as Table
 
 delete ::
   forall table a m.
-  (MonadWoobat m, HKD.TraversableB (HKD table)) =>
+  (MonadWoobat m, HKD.TraversableB table) =>
   Table table ->
-  (HKD table Expr -> Delete (Returning a)) ->
+  (table Expr -> Delete (Returning a)) ->
   m a
 delete table query =
   Raw.execute statement getResults

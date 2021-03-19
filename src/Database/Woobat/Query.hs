@@ -18,7 +18,6 @@ import Control.Monad.State
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as Lazy
 import Data.Functor.Const (Const (Const))
-import Data.Generic.HKD (HKD)
 import qualified Data.Generic.HKD as HKD
 import Data.Int
 import Data.Kind (Type)
@@ -38,14 +37,14 @@ import qualified Database.Woobat.Table as Table
 
 from ::
   forall table query.
-  (MonadQuery query, HKD.FunctorB (HKD table)) =>
+  (MonadQuery query, HKD.FunctorB table) =>
   Table table ->
-  query (HKD table Expr)
+  query (table Expr)
 from table = do
   let tableName =
         Text.encodeUtf8 $ Table.name table
   alias <- freshName tableName
-  let tableRow :: HKD table Expr
+  let tableRow :: table Expr
       tableRow =
         HKD.bmap (\(Const columnName) -> Expr $ Raw.codeExpr $ alias <> "." <> Text.encodeUtf8 columnName) $ Table.columnNames table
   addFrom $ Raw.Table tableName alias

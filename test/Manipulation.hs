@@ -27,9 +27,9 @@ import qualified Select
 
 create ::
   ( MonadWoobat m
-  , HKD.TraversableB (HKD table)
-  , HKD.AllB DatabaseType (HKD table)
-  , HKD.ConstraintsB (HKD table)
+  , HKD.TraversableB table
+  , HKD.AllB DatabaseType table
+  , HKD.ConstraintsB table
   ) =>
   Table table ->
   m ()
@@ -70,7 +70,7 @@ properties runWoobat =
               x2 <- s2
               pure $ HKD.build @(Expr.TableTwo _ _) x1 x2
             expected = Expr.TableTwo <$> expected1 <*> expected2
-        let table_ = table "select_after_insert"
+        let table_ = hkdTable "select_after_insert"
         result <- runWoobat $ do
           drop table_
           create table_

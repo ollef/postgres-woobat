@@ -49,8 +49,8 @@ data Profile = Profile
   }
   deriving (Generic)
 
-profile :: Table Profile
-profile = table "profile"
+profile :: Table (HKD Profile)
+profile = hkdTable "profile"
 
 ppp :: Profile
 ppp =
