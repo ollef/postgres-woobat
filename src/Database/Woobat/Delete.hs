@@ -7,7 +7,6 @@ module Database.Woobat.Delete where
 
 import qualified Barbies
 import Data.Functor.Const
-import qualified Data.Generic.HKD as HKD
 import qualified Data.HashMap.Lazy as HashMap
 import qualified Data.Text.Encoding as Text
 import qualified Database.PostgreSQL.LibPQ as LibPQ
@@ -24,15 +23,15 @@ import qualified Database.Woobat.Table as Table
 
 delete ::
   forall table a m.
-  (MonadWoobat m, HKD.TraversableB table) =>
+  (MonadWoobat m, Barbies.TraversableB table) =>
   Table table ->
   (table Expr -> Delete (Returning a)) ->
   m a
 delete table query =
   Raw.execute statement getResults
   where
-    columnNames = HKD.bmap (\(Const name) -> Const $ Text.encodeUtf8 name) $ Table.columnNames table
-    columnNameExprs = HKD.bmap (\(Const name) -> Expr $ Raw.codeExpr name) columnNames
+    columnNames = Barbies.bmap (\(Const name) -> Const $ Text.encodeUtf8 name) $ Table.columnNames table
+    columnNameExprs = Barbies.bmap (\(Const name) -> Expr $ Raw.codeExpr name) columnNames
     columnNamesList = Barbies.bfoldMap (\(Const name) -> [name]) columnNames
     usedNames = HashMap.fromList $ (Text.encodeUtf8 $ Table.name table, 1) : [(name, 1) | name <- columnNamesList]
     (returning, builderState) = Builder.run usedNames $ query columnNameExprs

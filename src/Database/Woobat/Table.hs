@@ -3,6 +3,7 @@
 
 module Database.Woobat.Table where
 
+import qualified Barbies
 import Data.Functor.Const
 import Data.Generic.HKD (HKD)
 import qualified Data.Generic.HKD as HKD
@@ -14,7 +15,7 @@ data Table table = Table
   , columnNames :: !(table (Const Text))
   }
 
-hkdTable :: (HKD.Label table, HKD.FunctorB (HKD table)) => Text -> Table (HKD table)
+hkdTable :: (HKD.Label table, Barbies.FunctorB (HKD table)) => Text -> Table (HKD table)
 hkdTable name_ =
   Table
     { name = name_

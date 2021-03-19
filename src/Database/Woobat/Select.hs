@@ -14,7 +14,6 @@ import Control.Exception.Safe
 import Control.Monad
 import Control.Monad.State
 import Data.Functor.Identity
-import qualified Data.Generic.HKD as HKD
 import qualified Database.PostgreSQL.LibPQ as LibPQ
 import Database.Woobat.Barbie hiding (result)
 import qualified Database.Woobat.Barbie
@@ -28,8 +27,8 @@ select ::
   forall a m.
   ( Monad.MonadWoobat m
   , Barbie Expr a
-  , HKD.AllB DatabaseType (ToBarbie Expr a)
-  , HKD.ConstraintsB (ToBarbie Expr a)
+  , Barbies.AllB DatabaseType (ToBarbie Expr a)
+  , Barbies.ConstraintsB (ToBarbie Expr a)
   , Resultable (FromBarbie Expr a Identity)
   ) =>
   Select a ->
@@ -42,8 +41,8 @@ select s = do
 parseRows ::
   forall a proxy.
   ( Barbie Expr a
-  , HKD.AllB DatabaseType (ToBarbie Expr a)
-  , HKD.ConstraintsB (ToBarbie Expr a)
+  , Barbies.AllB DatabaseType (ToBarbie Expr a)
+  , Barbies.ConstraintsB (ToBarbie Expr a)
   , Resultable (FromBarbie Expr a Identity)
   ) =>
   proxy a ->

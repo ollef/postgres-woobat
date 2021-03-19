@@ -6,8 +6,8 @@
 
 module Database.Woobat.Expr.Types where
 
+import qualified Barbies
 import Data.Functor.Identity
-import qualified Data.Generic.HKD as HKD
 import Data.Kind (Type)
 import qualified Database.Woobat.Raw as Raw
 
@@ -26,15 +26,15 @@ type family Nullable a where
 type Row row = RowF row Identity
 newtype RowF row (f :: Type -> Type) = Row (row f)
 
-instance HKD.FunctorB row => HKD.FunctorB (RowF row) where
-  bmap f (Row row_) = Row $ HKD.bmap f row_
+instance Barbies.FunctorB row => Barbies.FunctorB (RowF row) where
+  bmap f (Row row_) = Row $ Barbies.bmap f row_
 
-instance HKD.TraversableB row => HKD.TraversableB (RowF row) where
-  btraverse f (Row row_) = Row <$> HKD.btraverse f row_
+instance Barbies.TraversableB row => Barbies.TraversableB (RowF row) where
+  btraverse f (Row row_) = Row <$> Barbies.btraverse f row_
 
-instance HKD.ConstraintsB row => HKD.ConstraintsB (RowF row) where
-  type AllB c (RowF row) = HKD.AllB c row
-  baddDicts (Row row) = Row $ HKD.baddDicts row
+instance Barbies.ConstraintsB row => Barbies.ConstraintsB (RowF row) where
+  type AllB c (RowF row) = Barbies.AllB c row
+  baddDicts (Row row) = Row $ Barbies.baddDicts row
 
 deriving instance Eq (row Identity) => Eq (Row row)
 deriving instance Ord (row Identity) => Ord (Row row)

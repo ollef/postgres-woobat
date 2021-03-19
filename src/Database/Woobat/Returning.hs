@@ -3,8 +3,8 @@
 
 module Database.Woobat.Returning where
 
+import qualified Barbies
 import Data.Functor.Identity
-import qualified Data.Generic.HKD as HKD
 import Database.Woobat.Barbie
 import Database.Woobat.Expr
 
@@ -12,8 +12,8 @@ data Returning a where
   ReturningNothing :: Returning ()
   Returning ::
     ( Barbie Expr a
-    , HKD.AllB DatabaseType (ToBarbie Expr a)
-    , HKD.ConstraintsB (ToBarbie Expr a)
+    , Barbies.AllB DatabaseType (ToBarbie Expr a)
+    , Barbies.ConstraintsB (ToBarbie Expr a)
     , Resultable (FromBarbie Expr a Identity)
     ) =>
     a ->
@@ -25,8 +25,8 @@ returningNothing = const ReturningNothing
 
 returning ::
   ( Barbie Expr a
-  , HKD.AllB DatabaseType (ToBarbie Expr a)
-  , HKD.ConstraintsB (ToBarbie Expr a)
+  , Barbies.AllB DatabaseType (ToBarbie Expr a)
+  , Barbies.ConstraintsB (ToBarbie Expr a)
   , Resultable (FromBarbie Expr a Identity)
   ) =>
   a ->

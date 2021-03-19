@@ -18,7 +18,6 @@ import Control.Monad.State
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as Lazy
 import Data.Functor.Const (Const (Const))
-import qualified Data.Generic.HKD as HKD
 import Data.Int
 import Data.Kind (Type)
 import Data.Scientific
@@ -37,7 +36,7 @@ import qualified Database.Woobat.Table as Table
 
 from ::
   forall table query.
-  (MonadQuery query, HKD.FunctorB table) =>
+  (MonadQuery query, Barbies.FunctorB table) =>
   Table table ->
   query (table Expr)
 from table = do
@@ -46,7 +45,7 @@ from table = do
   alias <- freshName tableName
   let tableRow :: table Expr
       tableRow =
-        HKD.bmap (\(Const columnName) -> Expr $ Raw.codeExpr $ alias <> "." <> Text.encodeUtf8 columnName) $ Table.columnNames table
+        Barbies.bmap (\(Const columnName) -> Expr $ Raw.codeExpr $ alias <> "." <> Text.encodeUtf8 columnName) $ Table.columnNames table
   addFrom $ Raw.Table tableName alias
   pure tableRow
 
@@ -75,7 +74,7 @@ leftJoin (Select sel) on = do
   usedNames_ <- getUsedNames
   alias <- freshName "subquery"
   namedResults :: ToBarbie Expr a (Product (Const ByteString) Expr) <-
-    HKD.btraverse
+    Barbies.btraverse
       ( \e -> do
           name <- freshName "col"
           pure $ Product (Const name) e
@@ -83,11 +82,11 @@ leftJoin (Select sel) on = do
       innerResultsBarbie
   let outerResults :: ToBarbie Expr a Expr
       outerResults =
-        HKD.bmap (\(Product (Const name) _) -> Expr $ Raw.codeExpr $ alias <> "." <> name) namedResults
+        Barbies.bmap (\(Product (Const name) _) -> Expr $ Raw.codeExpr $ alias <> "." <> name) namedResults
       Expr rawOn =
         on $ fromBarbie @Expr @a outerResults
       nullableResults :: ToBarbie Expr a (NullableF Expr)
-      nullableResults = HKD.bmap (\(Expr e) -> NullableF (Expr e)) outerResults
+      nullableResults = Barbies.bmap (\(Expr e) -> NullableF (Expr e)) outerResults
   putFrom $
     Raw.LeftJoin
       leftFrom'
@@ -109,7 +108,7 @@ aggregate (Select sel) = do
   alias <- freshName "subquery"
   usedNames_ <- getUsedNames
   namedResults :: ToBarbie AggregateExpr a (Product (Const ByteString) AggregateExpr) <-
-    HKD.btraverse
+    Barbies.btraverse
       ( \e -> do
           name <- freshName "col"
           pure $ Product (Const name) e
@@ -117,7 +116,7 @@ aggregate (Select sel) = do
       (toBarbie innerResults)
   let outerResults :: ToBarbie AggregateExpr a Expr
       outerResults =
-        HKD.bmap (\(Product (Const name) _) -> Expr $ Raw.codeExpr $ alias <> "." <> name) namedResults
+        Barbies.bmap (\(Product (Const name) _) -> Expr $ Raw.codeExpr $ alias <> "." <> name) namedResults
   addFrom $
     Raw.Subquery
       (Barbies.bfoldMap (\(Product (Const name) (AggregateExpr e)) -> pure (Raw.unExpr e usedNames_, name)) namedResults)
@@ -143,8 +142,8 @@ expressions ::
   ( MonadQuery query
   , Barbie Expr a
   , Monoid (ToBarbie Expr a (Const ()))
-  , HKD.ConstraintsB (ToBarbie Expr a)
-  , HKD.AllB DatabaseType (ToBarbie Expr a)
+  , Barbies.ConstraintsB (ToBarbie Expr a)
+  , Barbies.AllB DatabaseType (ToBarbie Expr a)
   ) =>
   [a] ->
   query (FromBarbie Expr a Expr)
@@ -231,9 +230,9 @@ instance Unnestable UTCTime
 instance Unnestable DiffTime
 
 instance
-  ( HKD.AllB UnnestableRowElement row
-  , HKD.ConstraintsB row
-  , HKD.TraversableB row
+  ( Barbies.AllB UnnestableRowElement row
+  , Barbies.ConstraintsB row
+  , Barbies.TraversableB row
   , Monoid (row (Const ()))
   ) =>
   Unnestable (Row row)
@@ -257,10 +256,10 @@ instance (DatabaseType a, Unnestable a, UnnestedBarbie a ~ Singleton a) => Unnes
 
 -- | Unnest a singleton array
 unrow ::
-  ( HKD.AllB UnnestableRowElement row
-  , HKD.AllB DatabaseType row
-  , HKD.ConstraintsB row
-  , HKD.TraversableB row
+  ( Barbies.AllB UnnestableRowElement row
+  , Barbies.AllB DatabaseType row
+  , Barbies.ConstraintsB row
+  , Barbies.TraversableB row
   , Monoid (row (Const ()))
   ) =>
   Expr (Row row) ->

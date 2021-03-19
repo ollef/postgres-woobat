@@ -111,12 +111,12 @@ instance DatabaseEq (Expr a) where
 
 -- | Pointwise equality
 instance
-  ( HKD.ConstraintsB (HKD table)
-  , HKD.TraversableB (HKD table)
-  , HKD.ApplicativeB (HKD table)
-  , Barbies.AllBF DatabaseEq Expr (HKD table)
+  ( Barbies.ConstraintsB table
+  , Barbies.TraversableB table
+  , Barbies.ApplicativeB table
+  , Barbies.AllBF DatabaseEq Expr table
   ) =>
-  DatabaseEq (HKD table Expr)
+  DatabaseEq (table Expr)
   where
   table1 ==. table2 =
     foldr_ (&&.) true $
@@ -326,9 +326,9 @@ type family NonNestedArray a :: Constraint where
 -- * Rows
 
 record ::
-  ( HKD.TraversableB (HKD row)
-  , HKD.ConstraintsB (HKD row)
-  , HKD.AllB DatabaseType (HKD row)
+  ( Barbies.TraversableB (HKD row)
+  , Barbies.ConstraintsB (HKD row)
+  , Barbies.AllB DatabaseType (HKD row)
   , HKD.Construct Identity row
   , Generic row
   ) =>
@@ -347,9 +347,9 @@ row r = do
   hkdRow barbieRow
 
 fromJSONBRow ::
-  ( HKD.AllB FromJSON row
-  , HKD.TraversableB row
-  , HKD.ConstraintsB row
+  ( Barbies.AllB FromJSON row
+  , Barbies.TraversableB row
+  , Barbies.ConstraintsB row
   , Monoid (row (Const ()))
   ) =>
   Expr (JSONB (Row row)) ->
@@ -364,9 +364,9 @@ fromJSONBRow (Expr json) =
       return $ fromJSON $ Expr $ "(" <> json <> "->'f" <> fromString (show i) <> "')"
 
 instance
-  ( HKD.AllB DatabaseType row
-  , HKD.TraversableB row
-  , HKD.ConstraintsB row
+  ( Barbies.AllB DatabaseType row
+  , Barbies.TraversableB row
+  , Barbies.ConstraintsB row
   , Monoid (row (Const ()))
   ) =>
   DatabaseType (Row row)
@@ -388,10 +388,10 @@ instance
             mempty
 
 instance
-  ( HKD.AllB DatabaseType row
-  , HKD.AllB FromJSON row
-  , HKD.TraversableB row
-  , HKD.ConstraintsB row
+  ( Barbies.AllB DatabaseType row
+  , Barbies.AllB FromJSON row
+  , Barbies.TraversableB row
+  , Barbies.ConstraintsB row
   , Monoid (row (Const ()))
   ) =>
   FromJSON (Row row)
@@ -703,6 +703,6 @@ unsafeCastFromJSONString (Expr json) = Expr $ "(" <> json <> " #>> '{}')::" <> t
 class Impossible where
   impossible :: a
 
-hkdRow :: HKD.TraversableB row => row Expr -> Expr (Row row)
+hkdRow :: Barbies.TraversableB row => row Expr -> Expr (Row row)
 hkdRow r = do
   Expr $ "ROW(" <> Raw.separateBy ", " (Barbies.bfoldMap (\(Expr e) -> [e]) r) <> ")"

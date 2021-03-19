@@ -10,7 +10,6 @@ import qualified Barbies
 import Control.Lens (Lens', (^.))
 import Data.ByteString (ByteString)
 import Data.Functor.Const
-import qualified Data.Generic.HKD as HKD
 import qualified Data.HashMap.Lazy as HashMap
 import qualified Data.Text.Encoding as Text
 import qualified Database.PostgreSQL.LibPQ as LibPQ
@@ -27,7 +26,7 @@ import qualified Database.Woobat.Table as Table
 
 insert ::
   forall table a m.
-  (MonadWoobat m, HKD.TraversableB table) =>
+  (MonadWoobat m, Barbies.TraversableB table) =>
   Table table ->
   Select (table Expr) ->
   OnConflict table ->
@@ -36,9 +35,9 @@ insert ::
 insert table query (OnConflict onConflict_) returning =
   Raw.execute statement getResults
   where
-    columnNames = HKD.bmap (\(Const name) -> Const $ Text.encodeUtf8 name) $ Table.columnNames table
-    columnNameExprs = HKD.bmap (\(Const name) -> Expr $ Raw.codeExpr name) columnNames
-    excluded_ = HKD.bmap (\(Const name) -> Expr $ "EXCLUDED." <> Raw.codeExpr name) columnNames
+    columnNames = Barbies.bmap (\(Const name) -> Const $ Text.encodeUtf8 name) $ Table.columnNames table
+    columnNameExprs = Barbies.bmap (\(Const name) -> Expr $ Raw.codeExpr name) columnNames
+    excluded_ = Barbies.bmap (\(Const name) -> Expr $ "EXCLUDED." <> Raw.codeExpr name) columnNames
     columnNamesList = Barbies.bfoldMap (\(Const name) -> [name]) columnNames
     usedNames = HashMap.fromList $ (Text.encodeUtf8 $ Table.name table, 1) : [(name, 1) | name <- columnNamesList]
     (compiledQuery, _) = Select.compile $ do
@@ -104,7 +103,7 @@ data Assignment table where
   (:=) :: (forall f. Lens' (table f) (f a)) -> Expr a -> Assignment table
 
 setAll ::
-  (Barbies.TraversableB table, HKD.ApplicativeB table) =>
+  (Barbies.TraversableB table, Barbies.ApplicativeB table) =>
   table Expr ->
   ConflictAction table
 setAll assignments = ConflictAction $ \table ->

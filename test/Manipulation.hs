@@ -27,9 +27,9 @@ import qualified Select
 
 create ::
   ( MonadWoobat m
-  , HKD.TraversableB table
-  , HKD.AllB DatabaseType table
-  , HKD.ConstraintsB table
+  , Barbies.TraversableB table
+  , Barbies.AllB DatabaseType table
+  , Barbies.ConstraintsB table
   ) =>
   Table table ->
   m ()

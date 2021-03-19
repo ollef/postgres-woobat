@@ -7,6 +7,7 @@
 
 module Select where
 
+import qualified Barbies
 import Control.Lens hiding ((<.))
 import Control.Monad
 import Data.Foldable
@@ -261,8 +262,8 @@ data SomeSelectSpec where
     , Eq (Barbie.Result (Barbie.FromBarbie Expr a Identity))
     , Ord (Barbie.Result (Barbie.FromBarbie Expr a Identity))
     , Barbie Expr a
-    , HKD.AllB DatabaseType (Barbie.ToBarbie Expr a)
-    , HKD.ConstraintsB (Barbie.ToBarbie Expr a)
+    , Barbies.AllB DatabaseType (Barbie.ToBarbie Expr a)
+    , Barbies.ConstraintsB (Barbie.ToBarbie Expr a)
     , Barbie.Resultable (Barbie.FromBarbie Expr a Identity)
     ) =>
     Select a ->
@@ -376,8 +377,8 @@ data SomeColumnSelectSpec where
     , Eq (Barbie.Result (Barbie.FromBarbie Expr a Identity))
     , Ord (Barbie.Result (Barbie.FromBarbie Expr a Identity))
     , Barbie Expr a
-    , HKD.AllB DatabaseType (Barbie.ToBarbie Expr a)
-    , HKD.ConstraintsB (Barbie.ToBarbie Expr a)
+    , Barbies.AllB DatabaseType (Barbie.ToBarbie Expr a)
+    , Barbies.ConstraintsB (Barbie.ToBarbie Expr a)
     , Barbie.Resultable (Barbie.FromBarbie Expr a Identity)
     ) =>
     Select a ->

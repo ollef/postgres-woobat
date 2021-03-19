@@ -30,11 +30,11 @@ import GHC.Generics
 newtype Singleton (a :: Type) f = Singleton (f a)
   deriving (Eq, Ord, Show, Read, Generic, Semigroup, Monoid)
 
-instance HKD.FunctorB (Singleton a)
+instance Barbies.FunctorB (Singleton a)
 
-instance HKD.TraversableB (Singleton a)
+instance Barbies.TraversableB (Singleton a)
 
-instance HKD.ConstraintsB (Singleton a)
+instance Barbies.ConstraintsB (Singleton a)
 
 -------------------------------------------------------------------------------
 
@@ -47,15 +47,15 @@ instance (Semigroup (f a), Semigroup (g a)) => Semigroup (Product f g a) where
 instance (Monoid (f a), Monoid (g a)) => Monoid (Product f g a) where
   mempty = Product mempty mempty
 
-instance (HKD.FunctorB f, HKD.FunctorB g) => HKD.FunctorB (Product f g) where
-  bmap f (Product x y) = Product (HKD.bmap f x) (HKD.bmap f y)
+instance (Barbies.FunctorB f, Barbies.FunctorB g) => Barbies.FunctorB (Product f g) where
+  bmap f (Product x y) = Product (Barbies.bmap f x) (Barbies.bmap f y)
 
-instance (HKD.TraversableB f, HKD.TraversableB g) => HKD.TraversableB (Product f g) where
-  btraverse f (Product x y) = Product <$> HKD.btraverse f x <*> HKD.btraverse f y
+instance (Barbies.TraversableB f, Barbies.TraversableB g) => Barbies.TraversableB (Product f g) where
+  btraverse f (Product x y) = Product <$> Barbies.btraverse f x <*> Barbies.btraverse f y
 
-instance (HKD.ConstraintsB f, HKD.ConstraintsB g) => HKD.ConstraintsB (Product f g) where
-  type AllB c (Product f g) = (HKD.AllB c f, HKD.AllB c g)
-  baddDicts (Product x y) = Product (HKD.baddDicts x) (HKD.baddDicts y)
+instance (Barbies.ConstraintsB f, Barbies.ConstraintsB g) => Barbies.ConstraintsB (Product f g) where
+  type AllB c (Product f g) = (Barbies.AllB c f, Barbies.AllB c g)
+  baddDicts (Product x y) = Product (Barbies.baddDicts x) (Barbies.baddDicts y)
 
 -------------------------------------------------------------------------------
 
@@ -65,29 +65,29 @@ class c (Nullable a) => ConstrainNullable c a
 
 instance c (Nullable a) => ConstrainNullable c a
 
-instance HKD.ConstraintsB hkd => HKD.ConstraintsB (NullableHKD hkd) where
+instance Barbies.ConstraintsB hkd => Barbies.ConstraintsB (NullableHKD hkd) where
   type AllB c (NullableHKD hkd) = Barbies.AllB (ConstrainNullable c) hkd
   baddDicts ::
     forall c f.
-    HKD.AllB c (NullableHKD hkd) =>
+    Barbies.AllB c (NullableHKD hkd) =>
     NullableHKD hkd f ->
     NullableHKD hkd (Functor.Product (Barbies.Dict c) f)
   baddDicts (NullableHKD hkd) =
     NullableHKD $
-      HKD.bmap (\(Functor.Pair Barbies.Dict (NullableF a)) -> NullableF (Functor.Pair Barbies.Dict a)) $
-        HKD.baddDicts @_ @_ @(ConstrainNullable c) hkd
+      Barbies.bmap (\(Functor.Pair Barbies.Dict (NullableF a)) -> NullableF (Functor.Pair Barbies.Dict a)) $
+        Barbies.baddDicts @_ @_ @(ConstrainNullable c) hkd
 
-instance HKD.FunctorB hkd => HKD.FunctorB (NullableHKD hkd) where
+instance Barbies.FunctorB hkd => Barbies.FunctorB (NullableHKD hkd) where
   bmap f (NullableHKD hkd) =
-    NullableHKD $ HKD.bmap (\(NullableF x) -> NullableF $ f x) hkd
+    NullableHKD $ Barbies.bmap (\(NullableF x) -> NullableF $ f x) hkd
 
-instance HKD.TraversableB hkd => HKD.TraversableB (NullableHKD hkd) where
+instance Barbies.TraversableB hkd => Barbies.TraversableB (NullableHKD hkd) where
   btraverse f (NullableHKD hkd) =
-    NullableHKD <$> HKD.btraverse (\(NullableF x) -> NullableF <$> f x) hkd
+    NullableHKD <$> Barbies.btraverse (\(NullableF x) -> NullableF <$> f x) hkd
 
 -------------------------------------------------------------------------------
 
-class HKD.TraversableB (ToBarbie f t) => Barbie (f :: Type -> Type) t where
+class Barbies.TraversableB (ToBarbie f t) => Barbie (f :: Type -> Type) t where
   type ToBarbie f t :: (Type -> Type) -> Type
   type FromBarbie f t (g :: Type -> Type)
   toBarbie :: t -> ToBarbie f t f
@@ -117,13 +117,13 @@ instance Barbie AggregateExpr (AggregateExpr a) where
   toBarbie = Singleton
   fromBarbie (Singleton x) = x
 
-instance (HKD.TraversableB hkd) => Barbie Expr (hkd Expr) where
+instance (Barbies.TraversableB hkd) => Barbie Expr (hkd Expr) where
   type ToBarbie Expr (hkd Expr) = hkd
   type FromBarbie Expr (hkd Expr) g = hkd g
   toBarbie = id
   fromBarbie = id
 
-instance HKD.TraversableB hkd => Barbie f (hkd (NullableF f)) where
+instance Barbies.TraversableB hkd => Barbie f (hkd (NullableF f)) where
   type ToBarbie f (hkd (NullableF f)) = NullableHKD hkd
   type FromBarbie f (hkd (NullableF f)) g = hkd (NullableF g)
   toBarbie = NullableHKD
@@ -232,7 +232,7 @@ instance {-# OVERLAPPABLE #-} (Nullable a ~ Maybe a) => FromNullable a where
 instance FromNullable (Maybe a) where
   fromNullable = Just
 
-instance (HKD.Construct Maybe table, HKD.ConstraintsB (HKD table), HKD.AllB FromNullable (HKD table)) => Resultable (HKD table (NullableF Identity)) where
+instance (HKD.Construct Maybe table, Barbies.ConstraintsB (HKD table), Barbies.AllB FromNullable (HKD table)) => Resultable (HKD table (NullableF Identity)) where
   result table =
     HKD.construct $
       Barbies.bmapC @FromNullable (\(NullableF (Identity x)) -> fromNullable x) table

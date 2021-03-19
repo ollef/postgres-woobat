@@ -8,7 +8,6 @@ module Database.Woobat.Update where
 import qualified Barbies
 import qualified ByteString.StrictBuilder as Builder
 import Data.Functor.Const
-import qualified Data.Generic.HKD as HKD
 import qualified Data.HashMap.Lazy as HashMap
 import qualified Data.Sequence as Seq
 import qualified Data.Text.Encoding as Text
@@ -26,15 +25,15 @@ import qualified Database.Woobat.Update.Builder as Builder
 
 update ::
   forall table a m.
-  (MonadWoobat m, HKD.TraversableB table, Barbies.ApplicativeB table) =>
+  (MonadWoobat m, Barbies.TraversableB table, Barbies.ApplicativeB table) =>
   Table table ->
   (table Expr -> Update (table Expr, Returning a)) ->
   m a
 update table query =
   Raw.execute statement getResults
   where
-    columnNames = HKD.bmap (\(Const name) -> Const $ Text.encodeUtf8 name) $ Table.columnNames table
-    columnNameExprs = HKD.bmap (\(Const name) -> Expr $ Raw.codeExpr (Text.encodeUtf8 $ Table.name table) <> "." <> Raw.codeExpr name) columnNames
+    columnNames = Barbies.bmap (\(Const name) -> Const $ Text.encodeUtf8 name) $ Table.columnNames table
+    columnNameExprs = Barbies.bmap (\(Const name) -> Expr $ Raw.codeExpr (Text.encodeUtf8 $ Table.name table) <> "." <> Raw.codeExpr name) columnNames
     columnNamesList = Barbies.bfoldMap (\(Const name) -> [name]) columnNames
     usedNames = HashMap.fromList $ (Text.encodeUtf8 $ Table.name table, 1) : [(name, 1) | name <- columnNamesList]
     ((updatedRow, returning), builderState) = Builder.run usedNames $ query columnNameExprs
