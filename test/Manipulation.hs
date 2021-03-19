@@ -75,8 +75,7 @@ properties runWoobat =
           drop table_
           create table_
           insert table_ (select_ select1 select2) noConflictHandling $ const ReturningNothing
-          result <- select $ from table_
-          pure result
+          select $ from table_
         sort result Hedgehog.=== sort expected
     )
   ]
