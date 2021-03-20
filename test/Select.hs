@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedLabels #-}
@@ -11,6 +13,7 @@ import qualified Barbies
 import Control.Lens hiding ((<.))
 import Control.Monad
 import Data.Foldable
+import Data.Generic.HKD (HKD)
 import qualified Data.Generic.HKD as HKD
 import Data.Generics.Labels ()
 import qualified Data.List as List
@@ -18,6 +21,7 @@ import Data.Ratio
 import Database.Woobat
 import qualified Database.Woobat.Barbie as Barbie
 import qualified Expr
+import GHC.Generics
 import qualified Hedgehog
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
@@ -239,6 +243,27 @@ properties runWoobat =
         result Hedgehog.=== [xs]
     )
   ,
+    ( "HKD select"
+    , Hedgehog.withTests 100 $
+        Hedgehog.property $ do
+          SomeColumnSelectSpec select1 expected1 <- Hedgehog.forAll genSomeColumnSelectSpec
+          SomeColumnSelectSpec select2 expected2 <- Hedgehog.forAll genSomeColumnSelectSpec
+          SomeColumnSelectSpec select3 expected3 <- Hedgehog.forAll genSomeColumnSelectSpec
+          result <- Hedgehog.evalM $
+            runWoobat $
+              select $ do
+                x1 <- select1
+                x2 <- select2
+                x3 <- select3
+                pure $ HKDType (HKD.build @(Expr.TableTwo _ _) x1 x2) x3
+          let expected = do
+                x1 <- expected1
+                x2 <- expected2
+                x3 <- expected3
+                pure $ HKDType (HKD.build @(Expr.TableTwo _ _) (Identity x1) (Identity x2)) (Identity x3)
+          List.sort result Hedgehog.=== List.sort expected
+    )
+  ,
     ( "select spec"
     , Hedgehog.withTests 1000 $
         Hedgehog.property $ do
@@ -247,6 +272,12 @@ properties runWoobat =
           List.sort result Hedgehog.=== List.sort expected
     )
   ]
+
+data HKDType a b c f = HKDType
+  { first :: HKD (Expr.TableTwo a b) f
+  , second :: f c
+  }
+  deriving (Eq, Ord, Show, Generic, Barbies.FunctorB, Barbies.TraversableB, Barbies.ConstraintsB)
 
 -------------------------------------------------------------------------------
 
