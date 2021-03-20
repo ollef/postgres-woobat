@@ -53,7 +53,7 @@ where_ :: MonadQuery query => Expr Bool -> query ()
 where_ (Expr cond) =
   addWhere cond
 
-filter_ :: (a -> Expr Bool) -> Select a -> Select a
+filter_ :: MonadQuery query => (a -> Expr Bool) -> query a -> query a
 filter_ f q = do
   a <- q
   where_ $ f a
@@ -133,7 +133,7 @@ groupBy (Expr expr) = Select $ do
   pure $ AggregateExpr expr
 
 -- | @VALUES@
-values :: DatabaseType a => [a] -> Select (Expr a)
+values :: MonadQuery query => DatabaseType a => [a] -> query (Expr a)
 values = expressions . map value
 
 -- | @VALUES@
@@ -256,13 +256,14 @@ instance (DatabaseType a, Unnestable a, UnnestedBarbie a ~ Singleton a) => Unnes
 
 -- | Unnest a singleton array
 unrow ::
-  ( Barbies.AllB UnnestableRowElement row
+  ( MonadQuery query
+  , Barbies.AllB UnnestableRowElement row
   , Barbies.AllB DatabaseType row
   , Barbies.ConstraintsB row
   , Barbies.TraversableB row
   , Monoid (row (Const ()))
   ) =>
   Expr (Row row) ->
-  Select (row Expr)
+  query (row Expr)
 unrow row_ =
   (\(Row r) -> r) <$> unnest (array [row_])
