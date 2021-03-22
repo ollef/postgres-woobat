@@ -21,7 +21,6 @@ import qualified Data.List as List
 import Data.Ratio
 import Database.Woobat
 import qualified Database.Woobat.Barbie as Barbie
-import qualified Database.Woobat.Raw as Limit
 import qualified Expr
 import GHC.Generics
 import qualified Hedgehog
@@ -402,14 +401,33 @@ genSomeSelectSpec =
             expected' = [not $ null expected]
         pure $ SomeSelectSpec sel' expected'
     , do
-        SomeColumnSelectSpec sel expected <- genSomeColumnSelectSpec
-        maybeCount <- Gen.maybe $ Gen.int $ Range.linearFrom 0 0 1000
-        offset <- Gen.int $ Range.linearFrom 0 0 1000
-        let sel' = limit Limit {count = maybeCount, offset = offset} $ do
-              x <- sel
-              orderBy x ascending
-              pure x
-            expected' = maybe id take maybeCount $ drop offset $ List.sort expected
+        Expr.SomeIntegral gen <- Expr.genSomeIntegral
+        SelectSpec sel expected <- genSelectSpec gen
+        limit_ <- Gen.int $ Range.linearFrom 0 0 10
+        offset_ <- Gen.int $ Range.linearFrom 0 0 10
+        let sel' = limit limit_ $
+              offset offset_ $ do
+                x <- sel
+                orderBy x ascending
+                pure x
+            expected' = take limit_ $ drop offset_ $ List.sort expected
+        pure $ SomeSelectSpec sel' expected'
+    , do
+        Expr.SomeIntegral gen <- Expr.genSomeIntegral
+        SelectSpec sel expected <- genSelectSpec gen
+        limit1 <- Gen.int $ Range.linearFrom 0 0 10
+        offset1 <- Gen.int $ Range.linearFrom 0 0 10
+        limit2 <- Gen.int $ Range.linearFrom 0 0 10
+        offset2 <- Gen.int $ Range.linearFrom 0 0 10
+        let sel' =
+              limit limit1 $
+                offset offset1 $
+                  limit limit2 $
+                    offset offset2 $ do
+                      x <- sel
+                      orderBy x ascending
+                      pure x
+            expected' = take limit1 $ drop offset1 $ take limit2 $ drop offset2 $ List.sort expected
         pure $ SomeSelectSpec sel' expected'
     ]
 
@@ -470,14 +488,33 @@ genSomeColumnSelectSpec =
             expected' = [not $ null expected]
         pure $ SomeColumnSelectSpec sel' expected'
     , do
-        SomeColumnSelectSpec sel expected <- genSomeColumnSelectSpec
-        maybeCount <- Gen.maybe $ Gen.int $ Range.linearFrom 0 0 1000
-        offset <- Gen.int $ Range.linearFrom 0 0 1000
-        let sel' = limit Limit {count = maybeCount, offset = offset} $ do
-              x <- sel
-              orderBy x ascending
-              pure x
-            expected' = maybe id take maybeCount $ drop offset $ List.sort expected
+        Expr.SomeIntegral gen <- Expr.genSomeIntegral
+        SelectSpec sel expected <- genSelectSpec gen
+        limit_ <- Gen.int $ Range.linearFrom 0 0 1000
+        offset_ <- Gen.int $ Range.linearFrom 0 0 1000
+        let sel' = limit limit_ $
+              offset offset_ $ do
+                x <- sel
+                orderBy x ascending
+                pure x
+            expected' = take limit_ $ drop offset_ $ List.sort expected
+        pure $ SomeColumnSelectSpec sel' expected'
+    , do
+        Expr.SomeIntegral gen <- Expr.genSomeIntegral
+        SelectSpec sel expected <- genSelectSpec gen
+        limit1 <- Gen.int $ Range.linearFrom 0 0 1000
+        offset1 <- Gen.int $ Range.linearFrom 0 0 1000
+        limit2 <- Gen.int $ Range.linearFrom 0 0 1000
+        offset2 <- Gen.int $ Range.linearFrom 0 0 1000
+        let sel' =
+              limit limit1 $
+                offset offset1 $
+                  limit limit2 $
+                    offset offset2 $ do
+                      x <- sel
+                      orderBy x ascending
+                      pure x
+            expected' = take limit1 $ drop offset1 $ take limit2 $ drop offset2 $ List.sort expected
         pure $ SomeColumnSelectSpec sel' expected'
     ]
 

@@ -4,6 +4,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
 
 module Database.Woobat.Raw where
@@ -87,22 +88,49 @@ data Select = Select
   , wheres :: Tsil SQL
   , groupBys :: Tsil SQL
   , orderBys :: Tsil (SQL, Order)
+  , limit :: !Limit
   }
   deriving (Show)
+
+fromView :: Select -> Maybe (From ())
+fromView Select {..} =
+  case (wheres, groupBys, orderBys) of
+    (Empty, Empty, Empty) -> Just from
+    _ -> Nothing
+
+data Order = Ascending | Descending
+  deriving (Eq, Show)
+
+data From unitAlias
+  = Unit !unitAlias
+  | Table !ByteString !ByteString
+  | Set !SQL !SQL
+  | Subquery [(SQL, ByteString)] !Select !ByteString
+  | CrossJoin !(From ByteString) !(From ByteString)
+  | LeftJoin !(From ByteString) !SQL !(From ByteString)
+  deriving (Functor, Foldable, Traversable, Show)
+
+instance Semigroup Select where
+  Select a1 b1 c1 d1 e1 <> Select a2 b2 c2 d2 e2 =
+    Select (a1 <> a2) (b1 <> b2) (c1 <> c2) (d1 <> d2) (e1 <> e2)
+
+instance Monoid Select where
+  mempty = Select mempty mempty mempty mempty mempty
 
 data Limit = Limit
   { count :: Maybe Int
   , offset :: !Int
   }
-  deriving (Show)
+  deriving (Eq, Show)
 
 instance Semigroup Limit where
   Limit c1 o1 <> Limit c2 o2 =
     Limit
       ( case (c1, c2) of
-          (Nothing, _) -> c2
-          (_, Nothing) -> c1
-          (Just l1', Just l2') -> Just (min l1' l2')
+          (Nothing, Nothing) -> Nothing
+          (Just _, Nothing) -> c1
+          (Nothing, Just c2') -> Just $ max (c2' - o1) 0
+          (Just c1', Just c2') -> Just $ min c1' (max (c2' - o1) 0)
       )
       (o1 + o2)
 
@@ -113,30 +141,11 @@ instance Monoid Limit where
       , offset = 0
       }
 
-data Order = Ascending | Descending
-  deriving (Eq, Show)
-
-data From unitAlias
-  = Unit !unitAlias
-  | Table !ByteString !ByteString
-  | Set !SQL !SQL
-  | Subquery [(SQL, ByteString)] !Select !Limit !ByteString
-  | CrossJoin !(From ByteString) !(From ByteString)
-  | LeftJoin !(From ByteString) !SQL !(From ByteString)
-  deriving (Functor, Foldable, Traversable, Show)
-
-instance Semigroup Select where
-  Select a1 b1 c1 d1 <> Select a2 b2 c2 d2 =
-    Select (a1 <> a2) (b1 <> b2) (c1 <> c2) (d1 <> d2)
-
-instance Monoid Select where
-  mempty = Select mempty mempty mempty mempty
-
 unitView :: From unitAlias -> Either (From unitAlias') unitAlias
 unitView (Unit alias) = Right alias
 unitView (Table table alias) = Left (Table table alias)
 unitView (Set expr alias) = Left (Set expr alias)
-unitView (Subquery results select limit alias) = Left (Subquery results select limit alias)
+unitView (Subquery results select alias) = Left (Subquery results select alias)
 unitView (CrossJoin from1 from2) = Left (CrossJoin from1 from2)
 unitView (LeftJoin from1 on from2) = Left (LeftJoin from1 on from2)
 
@@ -190,7 +199,7 @@ instance Monad Tsil where
 -------------------------------------------------------------------------------
 
 compileSelect :: [SQL] -> Select -> SQL
-compileSelect exprs Select {from, wheres, groupBys, orderBys} =
+compileSelect exprs Select {from, wheres, groupBys, orderBys, limit} =
   "SELECT " <> separateBy ", " exprs
     <> ( case unitView from of
           Right () -> mempty
@@ -199,6 +208,7 @@ compileSelect exprs Select {from, wheres, groupBys, orderBys} =
     <> compileWheres wheres
     <> compileGroupBys groupBys
     <> compileOrderBys orderBys
+    <> compileLimit limit
 
 compileFrom :: From ByteString -> SQL
 compileFrom from =
@@ -212,10 +222,9 @@ compileFrom from =
         code name <> " AS " <> code alias
     Set expr returnRow ->
       expr <> " AS " <> returnRow
-    Subquery exprAliases select limit alias ->
+    Subquery exprAliases select alias ->
       "LATERAL ("
         <> compileSelect [expr <> " AS " <> code columnAlias | (expr, columnAlias) <- exprAliases] select
-        <> compileLimit limit
         <> ") AS "
         <> code alias
     CrossJoin left right ->
@@ -245,15 +254,10 @@ compileLimit :: Limit -> SQL
 compileLimit l =
   case count l of
     Nothing -> ""
-    Just n
-      | n >= 0 ->
-        " LIMIT " <> param (Builder.builderBytes $ Encoding.int8_int64 $ fromIntegral n) <> "::int8"
-      | otherwise -> error $ "Database.Woobat: limit with negative count " <> show n
+    Just n -> " LIMIT " <> param (Builder.builderBytes $ Encoding.int8_int64 $ fromIntegral n) <> "::int8"
     <> case offset l of
       0 -> ""
-      o
-        | o > 0 -> " OFFSET " <> param (Builder.builderBytes $ Encoding.int8_int64 $ fromIntegral o) <> "::int8"
-        | otherwise -> error $ "Database.Woobat: limit with negative offset " <> show o
+      o -> " OFFSET " <> param (Builder.builderBytes $ Encoding.int8_int64 $ fromIntegral o) <> "::int8"
 
 compileOnConflict :: OnConflict -> Expr
 compileOnConflict onConflict =

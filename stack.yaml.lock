@@ -3,45 +3,45 @@
 # For more information, please see the documentation at:
 #   https://docs.haskellstack.org/en/stable/lock_files
 
-packages:
-- completed:
-    hackage: barbies-2.0.2.0@sha256:fa6656b45c40f7d4ab1764d078c6878f37d37fab7f7135c061e9a5baa67943c0,4407
-    pantry-tree:
-      size: 4426
-      sha256: 5aa3ff178fe56b21250543384e8482de13f35ef57a06943178382b0f2e3eca24
-  original:
-    hackage: barbies-2.0.2.0
-- completed:
-    hackage: generic-lens-2.1.0.0@sha256:1af786fb2f347077266f4a137373c718cada59e2a2ed0aa0f5395d805ef9a18d,3867
-    pantry-tree:
-      size: 2470
-      sha256: 7ae8a265af80a62d02db98fafeb1658540203999a6cbf6fd9da17ead4af8400b
-  original:
-    hackage: generic-lens-2.1.0.0
-- completed:
-    hackage: generic-lens-core-2.1.0.0@sha256:8d650800aa4779366bd5639dce95662a5e368a044f4587689129bce44f2c5be6,2913
-    pantry-tree:
-      size: 2202
-      sha256: 9ef0d0c1a95f76b9d3876af15e2936113e339b1d93b37d3f96594648d51ff864
-  original:
-    hackage: generic-lens-core-2.1.0.0
-- completed:
-    hackage: higgledy-0.4.1.0@sha256:2c948eddd13907fcc3525ece860c80ad6daae75b345ce49255677ce66011d702,2238
-    pantry-tree:
-      size: 836
-      sha256: 29c605a2ce0a76eb04949f8ab066d80071f11eeb549ea1abe9d4f41e3992b8a1
-  original:
-    hackage: higgledy-0.4.1.0
-- completed:
-    hackage: named-0.3.0.1@sha256:2975d50c9c5d88095026ffc1303d2d9be52e5f588a8f8bcb7003a04b79f10a06,2312
-    pantry-tree:
-      size: 426
-      sha256: e0df5f146ecd48ef129dd74f868e8d2d754f0a11b36c5d0e56bd4b1947433c9f
-  original:
-    hackage: named-0.3.0.1
 snapshots:
-- completed:
-    size: 534126
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/16/31.yaml
+- original: lts-16.31
+  completed:
     sha256: 637fb77049b25560622a224845b7acfe81a09fdb6a96a3c75997a10b651667f6
-  original: lts-16.31
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/16/31.yaml
+    size: 534126
+packages:
+- original:
+    hackage: barbies-2.0.2.0
+  completed:
+    pantry-tree:
+      sha256: 5aa3ff178fe56b21250543384e8482de13f35ef57a06943178382b0f2e3eca24
+      size: 4426
+    hackage: barbies-2.0.2.0@sha256:fa6656b45c40f7d4ab1764d078c6878f37d37fab7f7135c061e9a5baa67943c0,4407
+- original:
+    hackage: generic-lens-2.1.0.0
+  completed:
+    pantry-tree:
+      sha256: 7ae8a265af80a62d02db98fafeb1658540203999a6cbf6fd9da17ead4af8400b
+      size: 2470
+    hackage: generic-lens-2.1.0.0@sha256:1af786fb2f347077266f4a137373c718cada59e2a2ed0aa0f5395d805ef9a18d,3867
+- original:
+    hackage: generic-lens-core-2.1.0.0
+  completed:
+    pantry-tree:
+      sha256: 9ef0d0c1a95f76b9d3876af15e2936113e339b1d93b37d3f96594648d51ff864
+      size: 2202
+    hackage: generic-lens-core-2.1.0.0@sha256:8d650800aa4779366bd5639dce95662a5e368a044f4587689129bce44f2c5be6,2913
+- original:
+    hackage: higgledy-0.4.1.0
+  completed:
+    pantry-tree:
+      sha256: 29c605a2ce0a76eb04949f8ab066d80071f11eeb549ea1abe9d4f41e3992b8a1
+      size: 836
+    hackage: higgledy-0.4.1.0@sha256:2c948eddd13907fcc3525ece860c80ad6daae75b345ce49255677ce66011d702,2238
+- original:
+    hackage: named-0.3.0.1
+  completed:
+    pantry-tree:
+      sha256: e0df5f146ecd48ef129dd74f868e8d2d754f0a11b36c5d0e56bd4b1947433c9f
+      size: 426
+    hackage: named-0.3.0.1@sha256:2975d50c9c5d88095026ffc1303d2d9be52e5f588a8f8bcb7003a04b79f10a06,2312
