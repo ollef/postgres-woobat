@@ -75,6 +75,7 @@ test-suite postgres-woobat-test
   main-is: Main.hs
   other-modules:
       Expr
+      Limit
       Manipulation
       Select
       Paths_postgres_woobat

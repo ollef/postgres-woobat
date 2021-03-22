@@ -8,6 +8,7 @@ import Database.Woobat
 import qualified Expr
 import qualified Hedgehog
 import qualified Hedgehog.Main as Hedgehog
+import qualified Limit
 import qualified Manipulation
 import qualified Select
 
@@ -31,4 +32,5 @@ main = do
         [ Hedgehog.checkParallel $ Hedgehog.Group "Select" $ Select.properties runWoobat
         , Hedgehog.checkParallel $ Hedgehog.Group "Expr" $ Expr.properties runWoobat
         , Hedgehog.checkParallel $ Hedgehog.Group "Manipulation" $ Manipulation.properties runWoobat
+        , Hedgehog.checkParallel $ Hedgehog.Group "Limit" Limit.properties
         ]
