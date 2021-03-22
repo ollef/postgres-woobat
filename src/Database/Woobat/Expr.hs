@@ -157,8 +157,8 @@ not_ :: Expr Bool -> Expr Bool
 not_ (Expr e) = Expr $ "NOT(" <> e <> ")"
 
 ifThenElse :: Expr Bool -> Expr a -> Expr a -> Expr a
-ifThenElse cond t f =
-  if_ [(cond, t)] f
+ifThenElse cond t =
+  if_ [(cond, t)]
 
 -- | @AND@
 (&&.) :: Expr Bool -> Expr Bool -> Expr Bool
