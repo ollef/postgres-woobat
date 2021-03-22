@@ -11,6 +11,7 @@
 module Database.Woobat.Query (
   module Database.Woobat.Query,
   MonadQuery,
+  Raw.Limit (Limit),
 ) where
 
 import qualified Barbies
@@ -94,9 +95,35 @@ leftJoin (Select sel) on = do
       ( Raw.Subquery
           (Barbies.bfoldMap (\(Product (Const name) (Expr e)) -> pure (Raw.unExpr e usedNames_, name)) namedResults)
           rightSelect
+          mempty
           alias
       )
   return $ fromBarbie @Expr @a nullableResults
+
+limit :: forall a query. (MonadQuery query, Barbie Expr a) => Raw.Limit -> Select a -> query (FromBarbie Expr a Expr)
+limit limit_ (Select sel) = do
+  (innerResults, subSelect) <- subquery sel
+  let innerResultsBarbie :: ToBarbie Expr a Expr
+      innerResultsBarbie = toBarbie innerResults
+  usedNames_ <- getUsedNames
+  alias <- freshName "subquery"
+  namedResults :: ToBarbie Expr a (Product (Const ByteString) Expr) <-
+    Barbies.btraverse
+      ( \e -> do
+          name <- freshName "col"
+          pure $ Product (Const name) e
+      )
+      innerResultsBarbie
+  addFrom $
+    Raw.Subquery
+      (Barbies.bfoldMap (\(Product (Const name) (Expr e)) -> pure (Raw.unExpr e usedNames_, name)) namedResults)
+      subSelect
+      limit_
+      alias
+  let outerResults :: ToBarbie Expr a Expr
+      outerResults =
+        Barbies.bmap (\(Product (Const name) _) -> Expr $ Raw.codeExpr $ alias <> "." <> name) namedResults
+  return $ fromBarbie @Expr @a outerResults
 
 aggregate ::
   forall a query.
@@ -121,6 +148,7 @@ aggregate (Select sel) = do
     Raw.Subquery
       (Barbies.bfoldMap (\(Product (Const name) (AggregateExpr e)) -> pure (Raw.unExpr e usedNames_, name)) namedResults)
       aggSelect
+      mempty
       alias
   return $ aggregated @a outerResults
 

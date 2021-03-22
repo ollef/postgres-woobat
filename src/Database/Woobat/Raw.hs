@@ -22,6 +22,7 @@ import qualified Data.Sequence as Seq
 import Data.String
 import qualified Database.PostgreSQL.LibPQ as LibPQ
 import qualified Database.Woobat.Monad as Monad
+import qualified PostgreSQL.Binary.Encoding as Encoding
 
 newtype SQL = SQL (Seq SQLFragment)
   deriving (Show)
@@ -89,6 +90,29 @@ data Select = Select
   }
   deriving (Show)
 
+data Limit = Limit
+  { count :: Maybe Int
+  , offset :: !Int
+  }
+  deriving (Show)
+
+instance Semigroup Limit where
+  Limit c1 o1 <> Limit c2 o2 =
+    Limit
+      ( case (c1, c2) of
+          (Nothing, _) -> c2
+          (_, Nothing) -> c1
+          (Just l1', Just l2') -> Just (min l1' l2')
+      )
+      (o1 + o2)
+
+instance Monoid Limit where
+  mempty =
+    Limit
+      { count = Nothing
+      , offset = 0
+      }
+
 data Order = Ascending | Descending
   deriving (Eq, Show)
 
@@ -96,8 +120,8 @@ data From unitAlias
   = Unit !unitAlias
   | Table !ByteString !ByteString
   | Set !SQL !SQL
-  | Subquery [(SQL, ByteString)] !Select !ByteString
-  | CrossJoin (From ByteString) (From ByteString)
+  | Subquery [(SQL, ByteString)] !Select !Limit !ByteString
+  | CrossJoin !(From ByteString) !(From ByteString)
   | LeftJoin !(From ByteString) !SQL !(From ByteString)
   deriving (Functor, Foldable, Traversable, Show)
 
@@ -112,7 +136,7 @@ unitView :: From unitAlias -> Either (From unitAlias') unitAlias
 unitView (Unit alias) = Right alias
 unitView (Table table alias) = Left (Table table alias)
 unitView (Set expr alias) = Left (Set expr alias)
-unitView (Subquery results select alias) = Left (Subquery results select alias)
+unitView (Subquery results select limit alias) = Left (Subquery results select limit alias)
 unitView (CrossJoin from1 from2) = Left (CrossJoin from1 from2)
 unitView (LeftJoin from1 on from2) = Left (LeftJoin from1 on from2)
 
@@ -188,8 +212,12 @@ compileFrom from =
         code name <> " AS " <> code alias
     Set expr returnRow ->
       expr <> " AS " <> returnRow
-    Subquery exprAliases select alias ->
-      "LATERAL (" <> compileSelect [expr <> " AS " <> code columnAlias | (expr, columnAlias) <- exprAliases] select <> ") AS " <> code alias
+    Subquery exprAliases select limit alias ->
+      "LATERAL ("
+        <> compileSelect [expr <> " AS " <> code columnAlias | (expr, columnAlias) <- exprAliases] select
+        <> compileLimit limit
+        <> ") AS "
+        <> code alias
     CrossJoin left right ->
       compileFrom left <> " CROSS JOIN " <> compileFrom right
     LeftJoin left on right ->
@@ -212,6 +240,20 @@ compileOrderBys orderBys =
 compileOrder :: Order -> SQL
 compileOrder Ascending = "ASC"
 compileOrder Descending = "DESC"
+
+compileLimit :: Limit -> SQL
+compileLimit l =
+  case count l of
+    Nothing -> ""
+    Just n
+      | n >= 0 ->
+        " LIMIT " <> param (Builder.builderBytes $ Encoding.int8_int64 $ fromIntegral n) <> "::int8"
+      | otherwise -> error $ "Database.Woobat: limit with negative count " <> show n
+    <> case offset l of
+      0 -> ""
+      o
+        | o > 0 -> " OFFSET " <> param (Builder.builderBytes $ Encoding.int8_int64 $ fromIntegral o) <> "::int8"
+        | otherwise -> error $ "Database.Woobat: limit with negative offset " <> show o
 
 compileOnConflict :: OnConflict -> Expr
 compileOnConflict onConflict =
