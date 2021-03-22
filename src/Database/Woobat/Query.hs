@@ -100,6 +100,7 @@ leftJoin (Select sel) on = do
       )
   return $ fromBarbie @Expr @a nullableResults
 
+-- | @LIMIT@ and @OFFSET@.
 limit :: forall a query. (MonadQuery query, Barbie Expr a) => Raw.Limit -> Select a -> query (FromBarbie Expr a Expr)
 limit limit_ (Select sel) = do
   (innerResults, subSelect) <- subquery sel
