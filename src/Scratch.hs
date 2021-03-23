@@ -35,11 +35,7 @@ instance
   fromLabel = HKD.field @field . lens (\(NullableF e) -> e) const
 
 newtype Newtype = Newtype Text
-
-instance DatabaseType Newtype where
-  encode (Newtype t) = encode t
-  decoder = mapDecoder Newtype decoder
-  typeName = typeName @Text
+  deriving (DatabaseNewtype Text)
 
 data Profile = Profile
   { name :: !Text

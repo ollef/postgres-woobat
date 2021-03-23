@@ -2,14 +2,15 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE UndecidableSuperClasses #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
@@ -696,6 +697,13 @@ instance DatabaseType DiffTime where
 
 instance FromJSON DiffTime where
   fromJSON = unsafeCastFromJSONString
+
+class (Coercible a b, NonMaybe b, DatabaseType b) => DatabaseNewtype b a | a -> b
+
+instance {-# OVERLAPPABLE #-} DatabaseNewtype b a => DatabaseType a where
+  typeName = typeName @b
+  encode a = encode (coerce a :: b)
+  decoder = mapDecoder (coerce :: b -> a) decoder
 
 -------------------------------------------------------------------------------
 
