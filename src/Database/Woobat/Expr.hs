@@ -481,6 +481,17 @@ type family NonNestedMaybe a :: Constraint where
     )
   NonNestedMaybe _ = ()
 
+type family NonMaybe a :: Constraint where
+  NonMaybe (Maybe a) =
+    ( TypeError
+        ( 'Text "Attempt to use a ‘Maybe’ type as a database type in a disallowed way:"
+            ':$$: 'ShowType (Maybe a)
+            ':$$: 'Text "This use can lead to nested ‘Maybe’s which is not supported since Woobat maps ‘Maybe’ types to nullable database types and there is only one null."
+        )
+    , Impossible
+    )
+  NonMaybe _ = ()
+
 -------------------------------------------------------------------------------
 
 -- * Subqueries
@@ -510,7 +521,7 @@ data Decoder a where
   Decoder :: Decoding.Value a -> Decoder a
   NullableDecoder :: Decoding.Value a -> Decoder (Maybe a)
 
-mapDecoder :: NonNestedMaybe a => (a -> b) -> Decoder a -> Decoder b
+mapDecoder :: NonMaybe a => (a -> b) -> Decoder a -> Decoder b
 mapDecoder f (Decoder d) = Decoder $ f <$> d
 mapDecoder _ (NullableDecoder _) = impossible
 
