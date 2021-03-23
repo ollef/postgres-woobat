@@ -6,6 +6,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Database.Woobat.Raw where
 
@@ -94,8 +95,8 @@ data Select = Select
 
 fromView :: Select -> Maybe (From ())
 fromView Select {..} =
-  case (wheres, groupBys, orderBys) of
-    (Empty, Empty, Empty) -> Just from
+  case (wheres, groupBys, orderBys, limit) of
+    (Empty, Empty, Empty, (== mempty) -> True) -> Just from
     _ -> Nothing
 
 data Order = Ascending | Descending
